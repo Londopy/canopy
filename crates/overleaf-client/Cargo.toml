@@ -1,0 +1,17 @@
+[package]
+name = "canopy-overleaf"
+description = "Talks to an Overleaf server (overleaf.com or self-hosted) for Canopy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

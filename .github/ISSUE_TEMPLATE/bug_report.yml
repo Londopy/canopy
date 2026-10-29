@@ -1,0 +1,45 @@
+name: Bug report
+description: Something doesn't work as described
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Canopy version
+      description: Settings > About shows it, e.g. "v0.1.0 · built 2026-10-28 · windows/x86_64".
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [Windows, macOS, Linux (AppImage), Linux (deb), Linux (rpm)]
+    validations:
+      required: true
+  - type: dropdown
+    id: server
+    attributes:
+      label: Overleaf server
+      options: [overleaf.com, Self-hosted Community Edition, Self-hosted Server Pro, Not relevant]
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: And what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Settings
+        2. ...
+  - type: textarea
+    id: logs
+    attributes:
+      label: debug.log
+      description: >
+        From the data folder (Command palette > "Open the data folder"). Check it first: it
+        never contains passwords or session cookies, but it can contain project names.
+      render: text

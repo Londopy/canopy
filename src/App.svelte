@@ -1,0 +1,155 @@
+<script lang="ts">
+  import { listen } from "@tauri-apps/api/event";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
+  import { onMount } from "svelte";
+  import { api, errText } from "./lib/api";
+  import { commands, VIEWS } from "./lib/commands";
+  import ActivityBar from "./lib/components/ActivityBar.svelte";
+  import CommandPalette from "./lib/components/CommandPalette.svelte";
+  import StatusBar from "./lib/components/StatusBar.svelte";
+  import Toasts from "./lib/components/Toasts.svelte";
+  import UpdateBanner from "./lib/components/UpdateBanner.svelte";
+  import { openLondopy } from "./lib/settingsio";
+  import { app } from "./lib/state.svelte";
+  import type { TexReport } from "./lib/types";
+  import { startUpdateSchedule } from "./lib/updates";
+  import Projects from "./lib/views/Projects.svelte";
+  import Settings from "./lib/views/Settings.svelte";
+  import Upcoming from "./lib/views/Upcoming.svelte";
+
+  let tex = $state<TexReport | null>(null);
+  let loadError = $state<string | null>(null);
+
+  const engineLabel = $derived(
+    app.config?.compile.engine === "remote" ? "Overleaf compile" : (tex?.engine ?? (tex ? "no local TeX" : "…")),
+  );
+
+  async function rescan() {
+    try {
+      tex = await api.detectTex();
+    } catch (e) {
+      app.toast("error", `Couldn't scan for TeX: ${errText(e)}`);
+    }
+  }
+
+  // the native title bar follows the app theme, not just the page
+  $effect(() => {
+    const theme = app.config?.general.theme ?? "system";
+    document.documentElement.dataset.theme = app.dark ? "dark" : "light";
+    getCurrentWindow()
+      .setTheme(theme === "system" ? null : theme)
+      .catch(() => {});
+  });
+
+  // lite mode hides some views; don't strand the user on one
+  $effect(() => {
+    const v = VIEWS.find((x) => x.view === app.view);
+    if (v?.full && app.lite) app.view = "projects";
+  });
+
+  function onkeydown(e: KeyboardEvent) {
+    const mod = e.ctrlKey || e.metaKey;
+    if (!mod) return;
+    const key = e.key.toLowerCase();
+    if ((e.shiftKey && key === "p") || (!e.shiftKey && key === "k")) {
+      e.preventDefault();
+      app.paletteOpen = !app.paletteOpen;
+      return;
+    }
+    // every other shortcut lives on its command, so the palette shows the same keys
+    const combo = `Ctrl+${e.shiftKey ? "Shift+" : ""}${e.key.length === 1 ? e.key.toUpperCase() : e.key}`;
+    const cmd = commands().find((c) => c.keys === combo);
+    if (cmd) {
+      e.preventDefault();
+      void cmd.run();
+    }
+  }
+
+  onMount(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    app.systemDark = media.matches;
+    const onMedia = (e: MediaQueryListEvent) => (app.systemDark = e.matches);
+    media.addEventListener("change", onMedia);
+
+    const unlisten = [
+      listen("tray-settings", () => (app.view = "settings")),
+      listen("tray-update", () => (app.view = "settings")),
+      listen<string>("londopy-path", (e) => openLondopy(e.payload)),
+    ];
+    let stopUpdates = () => {};
+
+    app
+      .load()
+      .then(async () => {
+        stopUpdates = startUpdateSchedule();
+        void rescan();
+        const file = await api.takeStartupFile();
+        if (file) await openLondopy(file);
+      })
+      .catch((e) => (loadError = errText(e)));
+
+    return () => {
+      media.removeEventListener("change", onMedia);
+      unlisten.forEach((p) => p.then((f) => f()));
+      stopUpdates();
+    };
+  });
+</script>
+
+<svelte:window {onkeydown} />
+
+{#if loadError}
+  <div class="fatal">
+    <h1>Canopy couldn't start</h1>
+    <p>{loadError}</p>
+  </div>
+{:else if app.config}
+  <div class="shell">
+    <ActivityBar />
+    <div class="main">
+      <UpdateBanner />
+      <main class="content">
+        {#if app.view === "projects"}
+          <Projects />
+        {:else if app.view === "settings"}
+          <Settings {tex} onrescan={rescan} />
+        {:else if app.view === "search"}
+          <Upcoming icon="search" title="Project search" text="Search and replace across every file in a synced project. Arrives with local mode." />
+        {:else if app.view === "sync"}
+          <Upcoming icon="sync" title="Folder sync" text="Link an Overleaf project to a folder and keep both sides in step. Arrives in the next milestones." />
+        {:else if app.view === "history"}
+          <Upcoming icon="history" title="Snapshots" text="Automatic local git history for every synced project, with diff and restore." />
+        {:else if app.view === "dashboard"}
+          <Upcoming icon="chart" title="Writing dashboard" text="Word counts per section, daily goals, deadlines and compile errors at a glance." />
+        {/if}
+      </main>
+    </div>
+  </div>
+  <StatusBar engine={engineLabel} />
+  {#if app.paletteOpen}<CommandPalette />{/if}
+{/if}
+<Toasts />
+
+<style>
+  .shell {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .content {
+    flex: 1;
+    overflow: auto;
+  }
+  .fatal {
+    margin: auto;
+    max-width: 520px;
+    padding: 32px;
+    text-align: center;
+  }
+</style>

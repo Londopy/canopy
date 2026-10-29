@@ -1,0 +1,239 @@
+name: Release
+
+# A vX.Y.Z tag builds every platform into a draft release, then one job adds
+# the portable builds, torrents, checksums and the release page and publishes
+# it. Drafts first, so the in-app updater (which reads latest.json from the
+# latest *published* release) never sees a half-uploaded one.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to rebuild, e.g. v0.1.0"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  validate:
+    name: Validate tag, versions and changelog
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+    steps:
+      - id: tag
+        # a manual run rebuilds the tag it's given; a push uses the pushed tag
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          if [[ "$TAG" == *-* ]]; then echo "prerelease=true"; else echo "prerelease=false"; fi >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+
+      # gate everything on this, so nine installers never get built for a
+      # release with broken notes or mismatched versions
+      - uses: Londopy/patchnotes@v2.6.0
+        with:
+          file: CHANGELOG.md
+          strict: "true"
+          check-version: ${{ steps.tag.outputs.tag }}
+
+      - name: package.json, Cargo.toml, tauri.conf.json and the tag agree
+        run: python3 scripts/check_versions.py "${{ steps.tag.outputs.tag }}"
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: validate
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # bundles_pre: WiX only takes numeric pre-release parts, so a -rc.1 tag
+          # ships the NSIS installer without MSIs
+          - name: windows-x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            rust_targets: x86_64-pc-windows-msvc
+            bundles: nsis,msi
+            bundles_pre: nsis
+            arch: x64
+          - name: windows-x86
+            os: windows-latest
+            target: i686-pc-windows-msvc
+            rust_targets: i686-pc-windows-msvc
+            bundles: nsis,msi
+            bundles_pre: nsis
+            arch: x86
+          - name: windows-arm64
+            os: windows-latest
+            target: aarch64-pc-windows-msvc
+            rust_targets: aarch64-pc-windows-msvc
+            bundles: nsis,msi
+            bundles_pre: nsis
+            arch: arm64
+          - name: macos-universal
+            os: macos-latest
+            target: universal-apple-darwin
+            rust_targets: x86_64-apple-darwin,aarch64-apple-darwin
+            # app = the .app.tar.gz the in-app updater downloads; dmg = the download people click
+            bundles: app,dmg
+          # pinned to 22.04: an AppImage built on newer glibc won't run on older distros
+          - name: linux-x64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            rust_targets: x86_64-unknown-linux-gnu
+            bundles: appimage,deb,rpm
+          - name: linux-arm64
+            os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            rust_targets: aarch64-unknown-linux-gnu
+            bundles: appimage,deb,rpm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - run: npm ci
+
+      # builds the bundles and the signed updater artifacts for this target,
+      # uploads them to the draft release, and merges this platform into latest.json
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ needs.validate.outputs.tag }}
+          releaseName: "Canopy ${{ needs.validate.outputs.tag }}"
+          releaseBody: "Assembling this release. The download table and checksums appear once every platform has built."
+          releaseDraft: true
+          prerelease: ${{ needs.validate.outputs.prerelease == 'true' }}
+          includeUpdaterJson: true
+          # the updater installs the per-user NSIS build, not the MSI
+          updaterJsonPreferNsis: true
+          args: --target ${{ matrix.target }} --bundles ${{ needs.validate.outputs.prerelease == 'true' && matrix.bundles_pre || matrix.bundles }}
+
+      # the bare exe is the portable build: tauri embeds the frontend, and
+      # WebView2 ships with Windows 10 and 11
+      - name: Portable exe
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force portable | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/Canopy.exe" "portable/Canopy-v${{ needs.validate.outputs.version }}-${{ matrix.arch }}-portable.exe"
+
+      - if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: portable-${{ matrix.arch }}
+          path: portable/*.exe
+          if-no-files-found: error
+
+  publish:
+    name: Release page and publish
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+          # git describe needs the earlier tags for the compare link
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: portable-*
+          path: portable
+          merge-multiple: true
+
+      - name: Portable zip
+        # stable inner folder name (no version), so a Scoop manifest's extract_dir never changes
+        run: |
+          VER="${{ needs.validate.outputs.version }}"
+          mkdir -p zip/Canopy
+          for arch in x64 x86 arm64; do
+            mkdir -p "zip/Canopy/$arch"
+            cp "portable/Canopy-v$VER-$arch-portable.exe" "zip/Canopy/$arch/Canopy.exe"
+            touch "zip/Canopy/$arch/portable"
+          done
+          (cd zip && zip -r -9 "../portable/Canopy-v$VER-portable.zip" Canopy)
+
+      - name: Download the draft's assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p dist
+          gh release download "${{ needs.validate.outputs.tag }}" --dir dist
+          cp portable/* dist/
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # the build jobs each read-modify-write latest.json; if two raced, a
+      # platform silently loses in-app updates. better to stop here
+      - name: Every platform is in latest.json
+        run: |
+          python3 - <<'EOF'
+          import json, sys
+          need = ["windows-x86_64", "windows-i686", "windows-aarch64", "darwin-x86_64",
+                  "darwin-aarch64", "linux-x86_64", "linux-aarch64"]
+          have = json.load(open("dist/latest.json"))["platforms"]
+          missing = [p for p in need if p not in have]
+          if missing:
+              sys.exit(f"latest.json is missing {missing}; re-run the release workflow for this tag")
+          print("latest.json has", sorted(have))
+          EOF
+
+      - name: Torrents, checksums and the release page
+        run: |
+          pip install --quiet segno==1.6.6
+          TAG="${{ needs.validate.outputs.tag }}"
+          PREV=$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || true)
+          python3 scripts/release_notes.py "$TAG" dist --prev "$PREV" --out body.md
+          cat dist/SHA256SUMS.txt
+
+      - name: Upload and publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.validate.outputs.tag }}"
+          # what the draft doesn't have yet (portable builds, torrents, QR codes,
+          # checksums) plus latest.json, now carrying the real release notes
+          NEW=$(cd dist && ls | grep -E -- '-portable\.(exe|zip)$|\.torrent$|\.magnet\.png$|^SHA256SUMS\.txt$|^latest\.json$')
+          (cd dist && gh release upload "$TAG" $NEW --clobber)
+          LATEST="--latest"
+          if [ "${{ needs.validate.outputs.prerelease }}" = "true" ]; then LATEST="--prerelease"; fi
+          gh release edit "$TAG" --title "$(cat title.txt)" --notes-file body.md --draft=false $LATEST
