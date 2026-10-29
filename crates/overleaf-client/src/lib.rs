@@ -2,12 +2,45 @@
 //!
 //! Overleaf has no public API, so this crate is the one place that knows the
 //! endpoints the web app itself uses. When Overleaf changes something, the fix
-//! belongs here and nowhere else. For now it only models servers; the HTTP and
-//! realtime clients arrive with project listing and sync.
+//! belongs here and nowhere else.
+
+mod client;
+mod tree;
+
+pub use client::{Client, Entity, ProjectSummary};
+pub use tree::{EntityKind, Folder, Indexed, Leaf};
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
+
+/// Why a request to the server failed.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum Error {
+    /// The session is missing or expired: sign in on the server's page again.
+    #[error("you're signed out of this server; open the account and sign in again")]
+    SignedOut,
+    /// The server answered with an error status.
+    #[error("the server said {0}: {1}")]
+    Http(u16, String),
+    /// The server couldn't be reached.
+    #[error("couldn't reach the server: {0}")]
+    Network(String),
+    /// The server answered with something Canopy doesn't understand, most
+    /// likely because Overleaf changed.
+    #[error("unexpected answer from the server: {0}")]
+    Protocol(String),
+}
+
+impl Error {
+    pub(crate) fn network(e: impl fmt::Display) -> Self {
+        Error::Network(e.to_string())
+    }
+
+    pub(crate) fn protocol(e: impl fmt::Display) -> Self {
+        Error::Protocol(e.to_string())
+    }
+}
 
 /// The hosted service, used when an account doesn't name a server.
 pub const OVERLEAF_COM: &str = "https://www.overleaf.com";

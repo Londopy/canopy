@@ -6,6 +6,9 @@
 
   const accounts = $derived(app.config?.accounts.length ?? 0);
   const latest = $derived(app.toasts[app.toasts.length - 1]);
+  const statuses = $derived(Object.values(app.sync));
+  const syncing = $derived(statuses.filter((s) => s.state === "syncing").length);
+  const trouble = $derived(statuses.filter((s) => s.state === "error" || s.state === "conflict").length);
 </script>
 
 <footer class="status">
@@ -17,6 +20,11 @@
     <Icon name="feather" size={14} />
     {engine}
   </span>
+  {#if syncing > 0}
+    <button class="item link" onclick={() => (app.view = "sync")}><Icon name="sync" size={14} /> Syncing {syncing}…</button>
+  {:else if trouble > 0}
+    <button class="item link warn" onclick={() => (app.view = "sync")}><Icon name="alert" size={14} /> {trouble} sync issue{trouble === 1 ? "" : "s"}</button>
+  {/if}
   {#if app.lite}<span class="item pill">Lite</span>{/if}
   {#if app.view === "web" && latest}
     <span class="item toast {latest.kind}" role="status">{latest.text}</span>
@@ -77,6 +85,9 @@
     color: inherit;
     font: inherit;
     cursor: pointer;
+  }
+  .link.warn {
+    color: var(--danger);
   }
   .link:hover {
     color: var(--text);

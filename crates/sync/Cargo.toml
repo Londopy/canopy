@@ -10,5 +10,14 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
+canopy-overleaf.workspace = true
 serde.workspace = true
 thiserror.workspace = true
+zip.workspace = true
+git2.workspace = true
+diffy.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+serde_json.workspace = true

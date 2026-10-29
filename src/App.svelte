@@ -12,10 +12,12 @@
   import UpdateBanner from "./lib/components/UpdateBanner.svelte";
   import { openLondopy } from "./lib/settingsio";
   import { app } from "./lib/state.svelte";
-  import type { PageState, TexReport } from "./lib/types";
+  import type { LinkStatus, PageState, TexReport } from "./lib/types";
   import { startUpdateSchedule } from "./lib/updates";
   import Projects from "./lib/views/Projects.svelte";
   import Settings from "./lib/views/Settings.svelte";
+  import History from "./lib/views/History.svelte";
+  import Sync from "./lib/views/Sync.svelte";
   import Upcoming from "./lib/views/Upcoming.svelte";
   import WebView from "./lib/views/WebView.svelte";
 
@@ -86,6 +88,9 @@
           title: before?.title,
         };
       }),
+      listen<LinkStatus>("sync-status", (e) => {
+        app.sync[e.payload.id] = e.payload;
+      }),
       listen<[string, string]>("web-title", (e) => {
         const [id, title] = e.payload;
         const page = app.pages[id];
@@ -99,6 +104,10 @@
       .then(async () => {
         stopUpdates = startUpdateSchedule();
         void rescan();
+        // statuses from syncs that ran before the UI loaded (full build only)
+        if (app.info?.full_build) {
+          for (const s of await api.syncStatuses().catch(() => [])) app.sync[s.id] = s;
+        }
         const file = await api.takeStartupFile();
         if (file) await openLondopy(file);
       })
@@ -134,9 +143,9 @@
         {:else if app.view === "search"}
           <Upcoming icon="search" title="Project search" text="Search and replace across every file in a synced project. Arrives with local mode." />
         {:else if app.view === "sync"}
-          <Upcoming icon="sync" title="Folder sync" text="Link an Overleaf project to a folder and keep both sides in step. Arrives in the next milestones." />
+          <Sync />
         {:else if app.view === "history"}
-          <Upcoming icon="history" title="Snapshots" text="Automatic local git history for every synced project, with diff and restore." />
+          <History />
         {:else if app.view === "dashboard"}
           <Upcoming icon="chart" title="Writing dashboard" text="Word counts per section, daily goals, deadlines and compile errors at a glance." />
         {/if}

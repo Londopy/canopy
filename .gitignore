@@ -25,3 +25,6 @@ dist/
 # Secrets
 .env
 *.key
+
+# local Overleaf CE test server state (dev/overleaf-ce)
+.test-user.json

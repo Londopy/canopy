@@ -37,9 +37,9 @@ your way.
 | ✅ | In-app updates, signature-checked, installed only when you say so |
 | ✅ | Overleaf accounts: overleaf.com and self-hosted servers, as many as you like, each with its own sign-in |
 | ✅ | Web mode: the real Overleaf editor inside Canopy, with back, reload, all projects and open in browser |
-| 🚧 | Project list in Canopy itself (comes with sync) |
-| 🚧 | Two-way folder sync, with a three-way merge when both sides changed |
-| 🚧 | Local snapshots: automatic git history with diff and restore |
+| ✅ | Each account's project list in Canopy |
+| ✅ | Two-way folder sync: edit in any editor, Canopy syncs on save and pulls Overleaf's changes; edits on both sides merge |
+| ✅ | Snapshots: a local git history of every sync, with diffs and one-click restore |
 | 🚧 | Local mode: editor, PDF preview with SyncTeX, local compiles, language server, project search |
 | 🚧 | Zotero citation picker and `.bib` sync |
 | 🚧 | Writing dashboard: word counts per section, daily goals, deadlines |
@@ -93,6 +93,33 @@ a new tab stay in Canopy when they're on the account's server, and go to your br
 | `Ctrl+,` | Settings |
 | `Ctrl+Shift+L` | Switch between light and dark |
 
+### Syncing a project to a folder
+
+In **Projects**, open an account's project list and choose **Sync to a folder** next to a
+project. Canopy makes a new folder named after the project inside the one you pick (it won't
+sync into a folder that already has files in it) and downloads the project. From then on:
+
+- Save a file in the folder with any editor and Canopy uploads it a couple of seconds later.
+  Changes made on Overleaf come down every few minutes, or straight away with **Sync now**.
+- Edits to different lines of the same file on both sides merge. Edits to the same lines leave
+  `<<<<<<< your folder` / `>>>>>>> overleaf` markers in your copy: keep what you want, delete
+  the markers, save, and the next sync uploads it. A file with markers is never uploaded. For
+  images and other binary files, Overleaf's version wins and yours is kept next to it as
+  `name.local-conflict.ext`.
+- Build output (`.aux`, `.log`, `.synctex.gz`, …) and editor or OS litter stay local.
+- A sync that would delete every file on one side, or more than half and more than five,
+  stops and asks first.
+- Files that can't sync (over 64 MB, or a name Windows can't store, like `Figure 3: a.png`)
+  are left alone on both sides and listed in **Sync**. A file Overleaf refuses is listed too
+  and tried again next time; it doesn't hold up the rest.
+- Every sync is a snapshot. **Snapshots** shows what each one changed, with a diff, and can
+  put the project back to any of them (on Overleaf too).
+
+A changed document is updated in place (it stays the same document on Overleaf, so its history
+continues). Renaming or moving a file in the folder shows up on Overleaf as a delete and a new
+file. If someone types in a document on Overleaf in the seconds between Canopy's download and
+its upload, the upload wins; the snapshot before it still has their text.
+
 ## .londopy files
 
 Canopy saves settings as `.londopy` files, the format all Londopy apps share. Double-click one
@@ -121,7 +148,18 @@ engine = "auto"           # "auto", "latexmk", "tectonic" or "remote"
 
 [updater]
 auto_update = true
+
+[[links]]                 # a synced project; add and remove these from the app
+id = "db8a0da933c0"
+account_id = "db90a782ebbc"
+project_id = "6ae2e6a397229a2a6d2f501c"
+project_name = "Thesis"
+folder = 'C:\Users\you\Documents\Thesis'
+auto_sync = true          # sync on save and every few minutes
 ```
+
+Snapshots live next to the config, in `sync/<link id>/history.git`: a plain git repository,
+so `git log` works on it too.
 
 ## How is this different from Overleaf in a browser?
 
@@ -129,14 +167,15 @@ auto_update = true
 |---|:---:|:---:|
 | The real Overleaf editor and collaboration | ✅ | ✅ |
 | Self-hosted Overleaf and overleaf.com side by side | ❌ | ✅ |
-| Projects as folders on disk | ❌ | 🚧 |
+| Projects as folders on disk | ❌ | ✅ |
 | Compiles without the free-plan timeout | ❌ | 🚧 |
 | Work offline | ❌ | 🚧 |
-| Version history without premium | ❌ | 🚧 |
+| Version history without premium | ❌ | ✅ |
 
 Canopy is an independent project and isn't affiliated with Overleaf. Overleaf has no public
-API, so sync uses the same endpoints the Overleaf web app uses, with your own session, and is
-kept in one crate so it's quick to fix when Overleaf changes something.
+API, so sync uses the same endpoints the Overleaf web app uses, with the session from the
+account's own sign-in (Canopy reads it from that account's browser profile and never stores
+it), and that code sits in one crate so it's quick to fix when Overleaf changes something.
 
 ## Building from source
 
@@ -154,17 +193,27 @@ npm run tauri:build    # installers for this platform
 
 Canopy Lite: `npx tauri build -- --no-default-features`.
 
+Sync is tested against a real Overleaf Community Edition running in Docker:
+
+```bash
+python dev/overleaf-ce/seed.py --env
+docker compose -f dev/overleaf-ce/compose.yml up -d
+python dev/overleaf-ce/seed.py
+cargo test -p canopy-overleaf -p canopy-sync -- --ignored
+```
+
 ## Layout
 
 ```
 src/                     the Svelte + TypeScript UI
-  lib/views/             Projects, Settings, …
-  lib/components/        activity bar, command palette, status bar, toasts
-src-tauri/               the Tauri app: commands, tray, updater, config, .londopy files
+  lib/views/             Projects, web mode, Sync, Snapshots, Settings
+  lib/components/        activity bar, command palette, status bar, dialogs, toasts
+src-tauri/               the Tauri app: commands, accounts, web mode, sync wiring, tray, updater
 crates/
-  overleaf-client/       everything that talks to an Overleaf server
-  sync/                  local folder <-> Overleaf project sync
+  overleaf-client/       everything that talks to an Overleaf server (HTTP + realtime tree)
+  sync/                  three-way sync planner, executor and git snapshot store
   texkit/                finding and running the local TeX toolchain
+dev/overleaf-ce/         a throwaway Overleaf CE in Docker for end-to-end tests
 scripts/                 release_notes.py, check_versions.py
 ```
 

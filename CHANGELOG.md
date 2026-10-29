@@ -25,3 +25,10 @@ what appears on its GitHub release page. Validated in CI by
 - Web mode: the real Overleaf site inside Canopy, with back, forward, reload, all projects and
   open in browser, and a signed-in indicator. New tabs on the account's server stay in Canopy;
   new tabs on other sites open in your browser.
+- Project lists: each account's projects in the Projects view.
+- Folder sync: sync a project to a new folder. Saving a file uploads it a couple of seconds
+  later, Overleaf's changes come down every few minutes, edits to different lines on both sides
+  merge, and same-line edits leave conflict markers that are never uploaded. Build output stays
+  local, and a sync that would delete most of one side asks first.
+- Snapshots: every sync is kept in a local git history, with a per-file diff and one-click
+  restore.

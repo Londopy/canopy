@@ -9,6 +9,9 @@ Issues and pull requests are welcome.
 - Lint: `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`.
   Also lint the Lite build: `cargo clippy -p canopy --no-default-features --all-targets -- -D warnings`.
 - Anything that talks to Overleaf goes in `crates/overleaf-client` and nowhere else.
+- Sync changes: also run the end-to-end tests against a local Overleaf CE (needs Docker):
+  `python dev/overleaf-ce/seed.py --env`, `docker compose -f dev/overleaf-ce/compose.yml up -d`,
+  `python dev/overleaf-ce/seed.py`, then `cargo test -p canopy-overleaf -p canopy-sync -- --ignored`.
 - Add a line under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) if the change is
   something a user would notice. The changelog is checked in CI by
   [patchnotes](https://github.com/Londopy/patchnotes).

@@ -20,6 +20,8 @@ pub struct AppConfig {
     pub compile: Compile,
     pub updater: Updater,
     pub accounts: Vec<Account>,
+    // projects synced to folders on this computer
+    pub links: Vec<SyncLink>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -83,6 +85,44 @@ pub struct Account {
     pub id: String,
     pub label: String,
     pub server: Server,
+}
+
+// an Overleaf project kept in step with a folder
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SyncLink {
+    // hex, like account ids: it names the link's history folder
+    pub id: String,
+    pub account_id: String,
+    pub project_id: String,
+    pub project_name: String,
+    pub folder: PathBuf,
+    // sync on its own: when files in the folder change, and every few minutes
+    #[serde(default = "yes")]
+    pub auto_sync: bool,
+}
+
+fn yes() -> bool {
+    true
+}
+
+// same folder, or one inside the other. case-insensitive on Windows and macOS,
+// whose usual file systems are
+pub fn overlaps(a: &Path, b: &Path) -> bool {
+    let norm = |p: &Path| -> Vec<String> {
+        let p = std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf());
+        p.components()
+            .map(|c| {
+                let s = c.as_os_str().to_string_lossy().into_owned();
+                if cfg!(any(windows, target_os = "macos")) {
+                    s.to_lowercase()
+                } else {
+                    s
+                }
+            })
+            .collect()
+    };
+    let (a, b) = (norm(a), norm(b));
+    a.starts_with(&b) || b.starts_with(&a)
 }
 
 // %APPDATA%\Canopy, ~/Library/Application Support/Canopy, ~/.config/canopy,
@@ -163,11 +203,46 @@ impl AppConfig {
                 .collect(),
             _ => Vec::new(),
         };
+        let links = match root.get("links") {
+            Some(toml::Value::Array(items)) => items
+                .iter()
+                .filter_map(|v| match v.clone().try_into::<SyncLink>() {
+                    // ids end up in paths and URLs: only the ones canopy makes
+                    Ok(l)
+                        if crate::accounts::valid_id(&l.id)
+                            && accounts.iter().any(|a| a.id == l.account_id)
+                            && !l.project_id.is_empty()
+                            && l.project_id.bytes().all(|b| b.is_ascii_alphanumeric())
+                            && l.folder.is_absolute() =>
+                    {
+                        Some(l)
+                    }
+                    Ok(l) => {
+                        crate::dlog!("config.toml: skipping the sync link {:?}", l.id);
+                        None
+                    }
+                    Err(e) => {
+                        crate::dlog!("config.toml: skipping a sync link: {e}");
+                        None
+                    }
+                })
+                .fold(Vec::<SyncLink>::new(), |mut kept, l| {
+                    // two links on one folder would mix two projects' files
+                    if kept.iter().any(|k| overlaps(&k.folder, &l.folder)) {
+                        crate::dlog!("config.toml: skipping the overlapping sync link {:?}", l.id);
+                    } else {
+                        kept.push(l);
+                    }
+                    kept
+                }),
+            _ => Vec::new(),
+        };
         Ok(Self {
             general: section(root.get("general")),
             compile: section(root.get("compile")),
             updater: section(root.get("updater")),
             accounts,
+            links,
         })
     }
 
@@ -187,11 +262,12 @@ impl AppConfig {
         Ok(())
     }
 
-    // what a settings export carries: everything except the accounts, which
-    // are tied to this machine's keychain
+    // what a settings export carries: everything except the accounts and the
+    // synced folders, which belong to this computer
     pub fn shareable(&self) -> Self {
         Self {
             accounts: Vec::new(),
+            links: Vec::new(),
             ..self.clone()
         }
     }
@@ -254,9 +330,42 @@ mod tests {
                 label: "Uni server".into(),
                 server: Server::parse("tex.example.org").unwrap(),
             }],
+            links: vec![SyncLink {
+                id: "b2".into(),
+                account_id: "a1".into(),
+                project_id: "6ae2e6a197229a2a6d2f5002".into(),
+                project_name: "Thesis".into(),
+                folder: std::env::temp_dir().join("Thesis"),
+                auto_sync: false,
+            }],
         };
         let back = AppConfig::from_toml(&cfg.to_toml().unwrap()).unwrap();
         assert_eq!(cfg, back);
+    }
+
+    #[test]
+    fn drops_links_that_dont_add_up() {
+        let folder = std::env::temp_dir().join("x");
+        let link = |id: &str, account: &str, project: &str, folder: &str| {
+            format!(
+                "[[links]]\nid = \"{id}\"\naccount_id = \"{account}\"\nproject_id = \"{project}\"\nproject_name = \"P\"\nfolder = {folder}\n"
+            )
+        };
+        let abs = toml::Value::String(folder.display().to_string()).to_string();
+        let text = format!(
+            "[[accounts]]\nid = \"a1\"\nlabel = \"x\"\nserver = \"https://tex.example.org\"\n{}{}{}{}",
+            link("b1", "a1", "6ae2", &abs),
+            link("b2", "nobody", "6ae2", &abs),
+            link("b3", "a1", "../x", &abs),
+            link("b4", "a1", "6ae2", "\"relative/folder\""),
+        );
+        let cfg = AppConfig::from_toml(&text).unwrap();
+        assert_eq!(
+            cfg.links.iter().map(|l| l.id.as_str()).collect::<Vec<_>>(),
+            vec!["b1"]
+        );
+        // and a missing auto_sync means on
+        assert!(cfg.links[0].auto_sync);
     }
 
     #[test]

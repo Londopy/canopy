@@ -1,7 +1,7 @@
 // app-wide state, shared by every component through runes
 
 import { api, errText } from "./api";
-import type { Account, AppConfig, AppInfo, PageState, Theme, UpdateInfo, View } from "./types";
+import type { Account, AppConfig, AppInfo, LinkStatus, PageState, Theme, UpdateInfo, View } from "./types";
 
 export interface Toast {
   id: number;
@@ -21,6 +21,9 @@ class AppState {
   // web mode: the account whose page is open, and what each page last reported
   activeAccount = $state<string | null>(null);
   pages = $state<Record<string, PageState>>({});
+  // sync: where each linked project stands, and which link the snapshots view shows
+  sync = $state<Record<string, LinkStatus>>({});
+  historyLink = $state<string | null>(null);
   // an account dialog is open: { mode: "add" } or { mode: "rename", account }
   accountDialog = $state<{ mode: "add" } | { mode: "rename"; account: Account } | null>(null);
 

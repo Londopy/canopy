@@ -16,8 +16,12 @@ export function serverLabel(server: string): string {
 }
 
 export async function removeAccount(account: Account) {
+  const synced = app.config?.links.filter((l) => l.account_id === account.id).length ?? 0;
+  const syncNote = synced
+    ? ` Its ${synced} synced folder${synced === 1 ? "" : "s"} stay where they are but stop syncing, and their snapshots are deleted.`
+    : "";
   const yes = await ask(
-    `Remove "${account.label}"? Canopy signs it out and deletes its saved browser data. Your projects on ${serverLabel(account.server)} aren't touched.`,
+    `Remove "${account.label}"? Canopy signs it out and deletes its saved browser data.${syncNote} Your projects on ${serverLabel(account.server)} aren't touched.`,
     { title: "Remove account", kind: "warning", okLabel: "Remove", cancelLabel: "Cancel" },
   );
   if (!yes) return;

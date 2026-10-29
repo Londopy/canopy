@@ -30,7 +30,13 @@ count as vulnerabilities:
 - One account's page reading another account's cookies or storage (each account has its own
   browser profile; macOS before 14 is the known exception).
 - A project path from a server writing outside the project's local folder (`..`, absolute
-  paths, drive letters).
+  paths, drive letters), or a project download big enough to fill the disk (sync caps single
+  files at 64 MB and a project at 1 GB).
+- Sync reading or writing outside the linked folder through a symlink or junction (symlinks
+  are skipped when reading, and writes refuse to go through one).
+- A project file from the server landing in a `.git` folder (or `.GIT`, `GIT~1`, and other
+  spellings that reach the same folder), which could plant git hooks.
+- Sync uploading a file that still has unresolved conflict markers.
 - A crafted `.londopy` file doing anything but being refused or opened as settings: path
   traversal, unbounded memory, running code.
 - The updater installing anything whose signature doesn't verify against the public key

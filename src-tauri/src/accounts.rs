@@ -12,6 +12,12 @@ const MAX_LABEL: usize = 60;
 // a short id that's unique within this config. it names the account's
 // webview and profile folder, so it stays [0-9a-f]
 fn new_id(cfg: &AppConfig) -> String {
+    new_id_for(cfg.accounts.iter().map(|a| a.id.as_str()))
+}
+
+/// A fresh hex id that isn't one of `taken` (accounts and sync links use the
+/// same kind, since both end up in folder names).
+pub fn new_id_for<'a>(taken: impl Iterator<Item = &'a str> + Clone) -> String {
     let mut seed = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos() as u64)
@@ -19,7 +25,7 @@ fn new_id(cfg: &AppConfig) -> String {
         ^ u64::from(std::process::id()) << 32;
     loop {
         let id = format!("{:012x}", seed & 0xffff_ffff_ffff);
-        if !cfg.accounts.iter().any(|a| a.id == id) {
+        if !taken.clone().any(|t| t == id) {
             return id;
         }
         seed = seed.wrapping_add(0x9e37_79b9);

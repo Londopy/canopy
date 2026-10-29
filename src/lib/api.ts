@@ -1,7 +1,21 @@
 // typed wrappers over the tauri commands in src-tauri/src/lib.rs
 
 import { invoke } from "@tauri-apps/api/core";
-import type { AppConfig, AppInfo, Rect, Routed, TexReport, UpdateInfo, WebAction } from "./types";
+import type {
+  AppConfig,
+  AppInfo,
+  Change,
+  LinkStatus,
+  ProjectSummary,
+  Rect,
+  RestoreReport,
+  Routed,
+  Snapshot,
+  SyncReport,
+  TexReport,
+  UpdateInfo,
+  WebAction,
+} from "./types";
 
 export const api = {
   appInfo: () => invoke<AppInfo>("app_info"),
@@ -22,6 +36,24 @@ export const api = {
   webBounds: (rect: Rect) => invoke<void>("web_bounds", { rect }),
   webHide: () => invoke<void>("web_hide"),
   webAction: (id: string, action: WebAction) => invoke<void>("web_action", { id, action }),
+  // sync (full build only)
+  listProjects: (accountId: string) => invoke<ProjectSummary[]>("list_projects", { accountId }),
+  linkProject: (accountId: string, projectId: string, projectName: string, parent: string) =>
+    invoke<AppConfig>("link_project", { accountId, projectId, projectName, parent }),
+  unlinkProject: (linkId: string, deleteHistory: boolean) =>
+    invoke<AppConfig>("unlink_project", { linkId, deleteHistory }),
+  setLinkAuto: (linkId: string, on: boolean) => invoke<AppConfig>("set_link_auto", { linkId, on }),
+  syncNow: (linkId: string, allowMassDelete = false) =>
+    invoke<SyncReport>("sync_now", { linkId, allowMassDelete }),
+  syncStatuses: () => invoke<LinkStatus[]>("sync_statuses"),
+  linkHistory: (linkId: string) => invoke<Snapshot[]>("link_history", { linkId }),
+  snapshotChanges: (linkId: string, snapshotId: string) =>
+    invoke<Change[]>("snapshot_changes", { linkId, snapshotId }),
+  snapshotDiff: (linkId: string, snapshotId: string, path: string) =>
+    invoke<string>("snapshot_diff", { linkId, snapshotId, path }),
+  restoreSnapshot: (linkId: string, snapshotId: string) =>
+    invoke<RestoreReport>("restore_snapshot", { linkId, snapshotId }),
+  openLinkFolder: (linkId: string) => invoke<void>("open_link_folder", { linkId }),
 };
 
 // tauri commands reject with a plain string; anything else gets stringified

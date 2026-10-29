@@ -24,16 +24,18 @@ path = "src/main.rs"
 [features]
 default = ["full"]
 # local mode, sync and snapshots. `--no-default-features` builds Canopy Lite:
-# the web-mode shell only, for a smaller download
-full = []
+# the web-mode shell only, for a smaller download (no git, no watcher)
+full = ["dep:canopy-sync", "dep:notify-debouncer-full", "dep:tokio"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
 canopy-overleaf.workspace = true
-canopy-sync.workspace = true
+canopy-sync = { workspace = true, optional = true }
 canopy-texkit.workspace = true
+notify-debouncer-full = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
 
 anyhow.workspace = true
 serde.workspace = true

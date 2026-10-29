@@ -1,7 +1,28 @@
 <script lang="ts">
+  import logo from "../../assets/canopy.svg";
   import { initials, removeAccount, serverLabel } from "../accounts";
+  import { api, errText } from "../api";
   import Icon from "../components/Icon.svelte";
   import { app } from "../state.svelte";
+  import { linkProject, stateLabel } from "../syncing";
+  import type { Account, ProjectSummary } from "../types";
+
+  // each account's project list, fetched when its row is opened
+  let open = $state<Record<string, { loading: boolean; error: string | null; items: ProjectSummary[] }>>({});
+
+  async function toggle(a: Account) {
+    if (open[a.id]) {
+      delete open[a.id];
+      return;
+    }
+    open[a.id] = { loading: true, error: null, items: [] };
+    try {
+      const items = await api.listProjects(a.id);
+      open[a.id] = { loading: false, error: null, items };
+    } catch (e) {
+      open[a.id] = { loading: false, error: errText(e), items: [] };
+    }
+  }
 
   const steps = [
     { icon: "cloud", title: "Sign in to Overleaf", text: "overleaf.com or your own self-hosted server. You sign in on Overleaf's own page." },
@@ -21,7 +42,7 @@
 {#if app.accounts.length === 0}
   <section class="welcome">
     <div class="hero">
-      <div class="mark"><Icon name="leaf" size={40} /></div>
+      <img class="mark" src={logo} alt="" width="72" height="72" />
       <h1>Welcome to Canopy</h1>
       <p class="lede">The real Overleaf editor, plus everything the browser can't do.</p>
     </div>
@@ -67,6 +88,17 @@
             </span>
             <span class="state {s.cls}"><span class="dot"></span>{s.text}</span>
           </button>
+          {#if !app.lite}
+            <button
+              class="icon"
+              title="Projects"
+              aria-label={`Projects on ${a.label}`}
+              aria-expanded={!!open[a.id]}
+              onclick={() => toggle(a)}
+            >
+              <Icon name="folder" size={16} />
+            </button>
+          {/if}
           <button class="icon" title="Rename" aria-label={`Rename ${a.label}`} onclick={() => (app.accountDialog = { mode: "rename", account: a })}>
             <Icon name="pencil" size={16} />
           </button>
@@ -74,13 +106,42 @@
             <Icon name="trash" size={16} />
           </button>
         </li>
+        {#if open[a.id]}
+          {@const list = open[a.id]}
+          <li class="projects">
+            {#if list.loading}
+              <p class="muted">Loading projects…</p>
+            {:else if list.error}
+              <p class="error">{list.error}</p>
+              <button class="ghost" onclick={() => app.openAccount(a.id)}>Open {a.label} to sign in</button>
+            {:else if list.items.length === 0}
+              <p class="muted">No projects on this account yet.</p>
+            {:else}
+              {#each list.items as p (p._id)}
+                {@const link = app.config?.links.find((l) => l.account_id === a.id && l.project_id === p._id)}
+                <div class="project">
+                  <span class="pname">{p.name}</span>
+                  {#if link}
+                    <span class="linked" title={link.folder}>
+                      <Icon name="sync" size={13} /> {stateLabel(app.sync[link.id]).text}
+                    </span>
+                    <button class="ghost small" onclick={() => (app.view = "sync")}>Sync settings</button>
+                  {:else if p.accessLevel === "readOnly" || p.accessLevel === "review"}
+                    <span class="muted small-text">Read-only</span>
+                  {:else}
+                    <button class="ghost small" onclick={() => linkProject(a, p)}>Sync to a folder…</button>
+                  {/if}
+                </div>
+              {/each}
+            {/if}
+          </li>
+        {/if}
       {/each}
     </ul>
 
-    <p class="hint">
-      Your project list shows on each account's own Overleaf dashboard. Folder sync, which lists projects here, comes
-      next.
-    </p>
+    {#if app.lite}
+      <p class="hint">Projects open on each account's own Overleaf dashboard. Folder sync is off in Lite mode.</p>
+    {/if}
   </section>
 {/if}
 
@@ -94,14 +155,8 @@
     text-align: center;
   }
   .mark {
-    width: 72px;
-    height: 72px;
+    display: block;
     margin: 0 auto 18px;
-    display: grid;
-    place-items: center;
-    border-radius: 20px;
-    color: var(--accent);
-    background: var(--accent-soft);
   }
   h1 {
     margin: 0 0 8px;
@@ -269,5 +324,49 @@
     color: var(--text-muted);
     font-size: 12.5px;
     margin-top: 16px;
+  }
+  li.projects {
+    display: block;
+    margin: -4px 0 4px 24px;
+    padding: 8px 12px;
+  }
+  .project {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .project:last-child {
+    border-bottom: 0;
+  }
+  .pname {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .linked {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--accent);
+    font-size: 12px;
+  }
+  .muted,
+  .small-text {
+    color: var(--text-faint);
+    font-size: 12.5px;
+    margin: 4px 0;
+  }
+  .error {
+    color: var(--danger);
+    font-size: 12.5px;
+    margin: 4px 0 8px;
+  }
+  button.small {
+    padding: 4px 10px;
+    font-size: 12.5px;
   }
 </style>

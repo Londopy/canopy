@@ -20,6 +20,73 @@ export interface AppConfig {
   compile: { engine: EnginePref };
   updater: { auto_update: boolean; skipped_version: string };
   accounts: Account[];
+  links: SyncLink[];
+}
+
+export interface SyncLink {
+  id: string;
+  account_id: string;
+  project_id: string;
+  project_name: string;
+  folder: string;
+  auto_sync: boolean;
+}
+
+export interface ProjectSummary {
+  _id: string;
+  name: string;
+  accessLevel: string;
+}
+
+export type SyncStateName = "off" | "synced" | "syncing" | "pending" | "conflict" | "error";
+
+export interface Conflict {
+  path: string;
+  kind: "text" | "binary" | "unresolved";
+}
+
+export interface LinkStatus {
+  id: string;
+  state: SyncStateName;
+  lastSync: number | null;
+  summary: string | null;
+  error: string | null;
+  conflicts: Conflict[];
+  massDelete: [number, number] | null;
+  failed: string[];
+  unsyncable: string[];
+  keptCopies: string[];
+}
+
+export interface RestoreReport {
+  changed: number;
+  before: string;
+  sync: SyncReport;
+}
+
+export interface SyncReport {
+  downloaded: string[];
+  uploaded: string[];
+  deleted_local: string[];
+  deleted_remote: string[];
+  merged: string[];
+  conflicts: Conflict[];
+  skipped: string[];
+  failed: string[];
+  unsyncable: string[];
+  kept_copies: string[];
+  snapshot: string | null;
+}
+
+export interface Snapshot {
+  id: string;
+  time: number;
+  message: string;
+}
+
+export interface Change {
+  path: string;
+  kind: "added" | "modified" | "deleted";
 }
 
 export interface AppInfo {

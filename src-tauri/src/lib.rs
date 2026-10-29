@@ -11,6 +11,8 @@ pub mod log_util;
 #[allow(dead_code)]
 pub mod londopy;
 mod settings_file;
+#[cfg(feature = "full")]
+mod syncing;
 mod tray;
 mod updater;
 mod web;
@@ -30,6 +32,8 @@ pub struct AppState {
     tray_ok: AtomicBool,
     // web mode's pages; see web::WebCtl for why it's an async lock
     web: tauri::async_runtime::Mutex<web::WebCtl>,
+    #[cfg(feature = "full")]
+    syncer: syncing::Syncer,
 }
 
 // a poisoned lock only means another thread panicked mid-update; the data is
@@ -105,8 +109,9 @@ fn can_self_update() -> bool {
     !config::is_portable() && tauri::utils::platform::bundle_type().is_some()
 }
 
-// saves everything but the accounts, which only change through the account
-// commands, so a settings save from a stale copy can't undo an add or remove
+// saves everything but the accounts and sync links, which only change through
+// their own commands, so a settings save from a stale copy can't undo an add
+// or remove
 #[tauri::command]
 fn set_config(app: AppHandle, state: State<'_, AppState>, cfg: AppConfig) -> Result<(), String> {
     let was_on = state
@@ -122,10 +127,14 @@ fn set_config(app: AppHandle, state: State<'_, AppState>, cfg: AppConfig) -> Res
     change_config(&state, |c| {
         *c = AppConfig {
             accounts: std::mem::take(&mut c.accounts),
+            links: std::mem::take(&mut c.links),
             ..cfg
         };
         Ok(())
     })?;
+    // lite mode switches the folder watchers off (and back on)
+    #[cfg(feature = "full")]
+    syncing::refresh_watchers(&app);
     Ok(())
 }
 
@@ -140,9 +149,9 @@ fn apply_autostart(app: &AppHandle, on: bool) -> Result<(), tauri_plugin_autosta
     }
 }
 
-// applies a change to the accounts and saves; the config only changes in
+// applies a change to the config and saves; the config only changes in
 // memory once it's on disk
-fn change_config<T>(
+pub(crate) fn change_config<T>(
     state: &AppState,
     f: impl FnOnce(&mut AppConfig) -> anyhow::Result<T>,
 ) -> Result<(AppConfig, T), String> {
@@ -184,6 +193,9 @@ async fn remove_account(
     if !accounts::valid_id(&id) {
         return Err("bad account id".into());
     }
+    // its synced projects stop syncing; their folders stay
+    #[cfg(feature = "full")]
+    syncing::drop_account_links(&app, &id);
     // after any show/hide still in flight, so the page can't reappear
     let mut web = state.web.lock().await;
     let (cfg, _) = change_config(&state, |c| accounts::remove(c, &id))?;
@@ -352,6 +364,8 @@ pub fn run() {
             ),
             tray_ok: AtomicBool::new(false),
             web: Default::default(),
+            #[cfg(feature = "full")]
+            syncer: Default::default(),
         })
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -376,6 +390,10 @@ pub fn run() {
                 .map(|a| a.id.clone())
                 .collect();
             std::thread::spawn(move || web::sweep(&known));
+
+            // folder watchers and the periodic pull for synced projects
+            #[cfg(feature = "full")]
+            syncing::start(&handle);
 
             if !config::is_portable() {
                 if let Err(e) = londopy::register_self() {
@@ -411,7 +429,15 @@ pub fn run() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![
+        .invoke_handler(handler())
+        .run(tauri::generate_context!())
+        .expect("error while running Canopy");
+}
+
+// every build's commands, plus whatever the build adds
+macro_rules! commands {
+    ($($extra:path),* $(,)?) => {
+        tauri::generate_handler![
             app_info,
             get_config,
             set_config,
@@ -430,7 +456,29 @@ pub fn run() {
             web::web_action,
             updater::check_update,
             updater::install_update,
-        ])
-        .run(tauri::generate_context!())
-        .expect("error while running Canopy");
+            $($extra),*
+        ]
+    };
+}
+
+#[cfg(feature = "full")]
+fn handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static {
+    commands![
+        syncing::list_projects,
+        syncing::link_project,
+        syncing::unlink_project,
+        syncing::set_link_auto,
+        syncing::sync_now,
+        syncing::sync_statuses,
+        syncing::link_history,
+        syncing::snapshot_changes,
+        syncing::snapshot_diff,
+        syncing::restore_snapshot,
+        syncing::open_link_folder,
+    ]
+}
+
+#[cfg(not(feature = "full"))]
+fn handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static {
+    commands![]
 }

@@ -247,6 +247,50 @@ pub async fn web_show(
     Ok(())
 }
 
+/// The account's webview, created hidden if it isn't open yet. Sync uses it
+/// to read the session cookie from the account's own browser profile.
+#[cfg(feature = "full")]
+pub async fn ensure(app: &AppHandle, account: &config::Account) -> Result<tauri::Webview, String> {
+    let state = app.state::<AppState>();
+    let _ctl = state.web.lock().await;
+    if let Some(wv) = app.get_webview(&label(&account.id)) {
+        return Ok(wv);
+    }
+    let wv = create(
+        app,
+        account,
+        Rect {
+            x: 0.0,
+            y: 0.0,
+            width: 1.0,
+            height: 1.0,
+        },
+    )?;
+    wv.hide().map_err(err)?;
+    Ok(wv)
+}
+
+/// The account's session as a `Cookie:` header value, read from its browser
+/// profile. Call from an async command: on Windows the cookie store answers
+/// on the main thread.
+#[cfg(feature = "full")]
+pub async fn session_cookie(app: &AppHandle, account: &config::Account) -> Result<String, String> {
+    let wv = ensure(app, account).await?;
+    let url: Url = account.server.base_url().parse().map_err(err)?;
+    let cookies = wv.cookies_for_url(url).map_err(err)?;
+    if cookies.is_empty() {
+        return Err(format!(
+            "{} isn't signed in. Open it and sign in on the server's page first.",
+            account.label
+        ));
+    }
+    Ok(cookies
+        .iter()
+        .map(|c| format!("{}={}", c.name(), c.value()))
+        .collect::<Vec<_>>()
+        .join("; "))
+}
+
 /// Moves the visible page when the shell's layout changes (window resize,
 /// sidebar toggle).
 #[tauri::command]

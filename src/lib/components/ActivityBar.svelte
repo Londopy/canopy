@@ -1,4 +1,5 @@
 <script lang="ts">
+  import logo from "../../assets/canopy.svg";
   import { initials } from "../accounts";
   import { VIEWS } from "../commands";
   import { app } from "../state.svelte";
@@ -8,7 +9,7 @@
 </script>
 
 <nav class="bar" aria-label="Views">
-  <div class="logo" title="Canopy"><Icon name="leaf" size={22} /></div>
+  <div class="logo" title="Canopy"><img src={logo} alt="" width="26" height="26" /></div>
   {#each shown as v (v.view)}
     <button
       class:active={app.view === v.view}

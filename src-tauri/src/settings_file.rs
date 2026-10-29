@@ -31,6 +31,7 @@ pub fn import(path: &Path, current: &AppConfig) -> Result<AppConfig> {
     let text = String::from_utf8(raw).context("settings.toml is not UTF-8")?;
     let mut cfg = AppConfig::from_toml(&text)?;
     cfg.accounts = current.accounts.clone();
+    cfg.links = current.links.clone();
     Ok(cfg)
 }
 

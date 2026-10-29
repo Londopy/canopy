@@ -1,0 +1,64 @@
+# A throwaway Overleaf Community Edition for testing Canopy's sync, at
+# http://localhost:8090. Local only: it listens on 127.0.0.1 and nothing here
+# is meant to face the internet.
+#
+#   docker compose -f dev/overleaf-ce/compose.yml up -d
+#   python dev/overleaf-ce/seed.py          # test user + a sample project
+#   docker compose -f dev/overleaf-ce/compose.yml down -v   # throw it all away
+name: canopy-overleaf-ce
+
+services:
+  sharelatex:
+    image: sharelatex/sharelatex:6.3.2
+    container_name: canopy-overleaf
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "127.0.0.1:8090:80"
+    stop_grace_period: 60s
+    volumes:
+      - overleaf-data:/var/lib/overleaf
+    environment:
+      OVERLEAF_APP_NAME: Canopy test server
+      OVERLEAF_SITE_URL: http://localhost:8090
+      OVERLEAF_MONGO_URL: mongodb://mongo/sharelatex
+      OVERLEAF_REDIS_HOST: redis
+      REDIS_HOST: redis
+      ENABLED_LINKED_FILE_TYPES: "project_file,project_output_file"
+      EMAIL_CONFIRMATION_DISABLED: "true"
+      # required since 6.x; lives in an untracked .env next to this file
+      # (seed.py writes one with a random value)
+      OVERLEAF_INVITE_TOKEN_SECRET: ${OVERLEAF_INVITE_TOKEN_SECRET:?missing; run python dev/overleaf-ce/seed.py --env first}
+
+  mongo:
+    image: mongo:8.0
+    container_name: canopy-overleaf-mongo
+    # Overleaf needs a replica set, even a one-member one
+    command: "--replSet overleaf"
+    volumes:
+      - mongo-data:/data/db
+      - ./mongodb-init-replica-set.js:/docker-entrypoint-initdb.d/mongodb-init-replica-set.js:ro
+    environment:
+      MONGO_INITDB_DATABASE: sharelatex
+    extra_hosts:
+      # lets the init script reach "mongo" before the network alias exists
+      - mongo:127.0.0.1
+    healthcheck:
+      test: echo 'db.stats().ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:6.2
+    container_name: canopy-overleaf-redis
+    volumes:
+      - redis-data:/data
+
+volumes:
+  overleaf-data:
+  mongo-data:
+  redis-data:

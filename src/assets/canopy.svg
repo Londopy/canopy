@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Canopy: three leaves over a page line. Source for every icon size
+       (npx tauri icon src-tauri/icons/canopy.svg) -->
+  <rect width="1024" height="1024" rx="224" fill="#f3f7f4"/>
+  <path d="M512 800V480" stroke="#23754a" stroke-width="48" stroke-linecap="round" fill="none"/>
+  <path d="M512 512C352 512 224 400 208 240c160 0 288 96 304 272z" fill="#4fbf82"/>
+  <path d="M512 512c160 0 288-112 304-272-160 0-288 96-304 272z" fill="#2f8f5b"/>
+  <path d="M512 480c-80-96-80-208 0-304 80 96 80 208 0 304z" fill="#23754a"/>
+  <path d="M288 816h448" stroke="#23754a" stroke-width="48" stroke-linecap="round" fill="none"/>
+</svg>
