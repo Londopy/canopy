@@ -2,6 +2,7 @@
 // the tauri app: plugins, state, window/tray behaviour and the commands the
 // svelte frontend calls. the real work lives in the crates/ workspace members.
 
+mod accounts;
 pub mod config;
 #[macro_use]
 pub mod log_util;
@@ -12,6 +13,7 @@ pub mod londopy;
 mod settings_file;
 mod tray;
 mod updater;
+mod web;
 
 use config::AppConfig;
 use serde::Serialize;
@@ -26,6 +28,8 @@ pub struct AppState {
     tray_update: Mutex<Option<String>>,
     startup_file: Mutex<Option<PathBuf>>,
     tray_ok: AtomicBool,
+    // web mode's pages; see web::WebCtl for why it's an async lock
+    web: tauri::async_runtime::Mutex<web::WebCtl>,
 }
 
 // a poisoned lock only means another thread panicked mid-update; the data is
@@ -101,6 +105,8 @@ fn can_self_update() -> bool {
     !config::is_portable() && tauri::utils::platform::bundle_type().is_some()
 }
 
+// saves everything but the accounts, which only change through the account
+// commands, so a settings save from a stale copy can't undo an add or remove
 #[tauri::command]
 fn set_config(app: AppHandle, state: State<'_, AppState>, cfg: AppConfig) -> Result<(), String> {
     let was_on = state
@@ -113,8 +119,13 @@ fn set_config(app: AppHandle, state: State<'_, AppState>, cfg: AppConfig) -> Res
     if was_on != cfg.general.start_with_system {
         apply_autostart(&app, cfg.general.start_with_system).map_err(err)?;
     }
-    cfg.save(&config::config_path()).map_err(err_any)?;
-    *state.config.write().unwrap_or_else(|e| e.into_inner()) = cfg;
+    change_config(&state, |c| {
+        *c = AppConfig {
+            accounts: std::mem::take(&mut c.accounts),
+            ..cfg
+        };
+        Ok(())
+    })?;
     Ok(())
 }
 
@@ -127,6 +138,57 @@ fn apply_autostart(app: &AppHandle, on: bool) -> Result<(), tauri_plugin_autosta
     } else {
         Ok(())
     }
+}
+
+// applies a change to the accounts and saves; the config only changes in
+// memory once it's on disk
+fn change_config<T>(
+    state: &AppState,
+    f: impl FnOnce(&mut AppConfig) -> anyhow::Result<T>,
+) -> Result<(AppConfig, T), String> {
+    let mut cfg = state.config.write().unwrap_or_else(|e| e.into_inner());
+    let mut next = cfg.clone();
+    let out = f(&mut next).map_err(err_any)?;
+    next.save(&config::config_path()).map_err(err_any)?;
+    *cfg = next.clone();
+    Ok((next, out))
+}
+
+#[tauri::command]
+fn add_account(
+    state: State<'_, AppState>,
+    label: String,
+    server: String,
+) -> Result<AppConfig, String> {
+    let (cfg, account) = change_config(&state, |c| accounts::add(c, &label, &server))?;
+    dlog!("added account {} for {}", account.id, account.server);
+    Ok(cfg)
+}
+
+#[tauri::command]
+fn rename_account(
+    state: State<'_, AppState>,
+    id: String,
+    label: String,
+) -> Result<AppConfig, String> {
+    Ok(change_config(&state, |c| accounts::rename(c, &id, &label))?.0)
+}
+
+// removes the account and deletes its browser profile, which signs it out
+#[tauri::command]
+async fn remove_account(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<AppConfig, String> {
+    if !accounts::valid_id(&id) {
+        return Err("bad account id".into());
+    }
+    // after any show/hide still in flight, so the page can't reappear
+    let mut web = state.web.lock().await;
+    let (cfg, _) = change_config(&state, |c| accounts::remove(c, &id))?;
+    web::forget(&app, &mut web, &id).await;
+    Ok(cfg)
 }
 
 // files from the frontend: only .londopy, so these commands can't be pointed
@@ -273,7 +335,14 @@ pub fn run() {
             Some(vec!["--hidden"]),
         ))
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init())
+        // open_js_links_on_click would also hijack target=_blank links inside
+        // the Overleaf pages and send them to a command those pages can't
+        // call, so they'd go nowhere; web.rs routes new windows itself
+        .plugin(
+            tauri_plugin_opener::Builder::new()
+                .open_js_links_on_click(false)
+                .build(),
+        )
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState {
             config: RwLock::new(cfg),
@@ -282,6 +351,7 @@ pub fn run() {
                 londopy_arg(&args).map(|p| std::path::absolute(&p).unwrap_or(p)),
             ),
             tray_ok: AtomicBool::new(false),
+            web: Default::default(),
         })
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -294,6 +364,18 @@ pub fn run() {
                     .store(true, Ordering::Relaxed),
                 Err(e) => dlog!("no tray icon: {e}"),
             }
+
+            // profiles of removed accounts that a webview held on to last time
+            let known: Vec<String> = app
+                .state::<AppState>()
+                .config
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .accounts
+                .iter()
+                .map(|a| a.id.clone())
+                .collect();
+            std::thread::spawn(move || web::sweep(&known));
 
             if !config::is_portable() {
                 if let Err(e) = londopy::register_self() {
@@ -339,6 +421,13 @@ pub fn run() {
             open_data_dir,
             route_londopy,
             take_startup_file,
+            add_account,
+            rename_account,
+            remove_account,
+            web::web_show,
+            web::web_bounds,
+            web::web_hide,
+            web::web_action,
             updater::check_update,
             updater::install_update,
         ])

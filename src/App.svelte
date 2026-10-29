@@ -4,6 +4,7 @@
   import { onMount } from "svelte";
   import { api, errText } from "./lib/api";
   import { commands, VIEWS } from "./lib/commands";
+  import AccountDialog from "./lib/components/AccountDialog.svelte";
   import ActivityBar from "./lib/components/ActivityBar.svelte";
   import CommandPalette from "./lib/components/CommandPalette.svelte";
   import StatusBar from "./lib/components/StatusBar.svelte";
@@ -11,11 +12,12 @@
   import UpdateBanner from "./lib/components/UpdateBanner.svelte";
   import { openLondopy } from "./lib/settingsio";
   import { app } from "./lib/state.svelte";
-  import type { TexReport } from "./lib/types";
+  import type { PageState, TexReport } from "./lib/types";
   import { startUpdateSchedule } from "./lib/updates";
   import Projects from "./lib/views/Projects.svelte";
   import Settings from "./lib/views/Settings.svelte";
   import Upcoming from "./lib/views/Upcoming.svelte";
+  import WebView from "./lib/views/WebView.svelte";
 
   let tex = $state<TexReport | null>(null);
   let loadError = $state<string | null>(null);
@@ -75,6 +77,20 @@
       listen("tray-settings", () => (app.view = "settings")),
       listen("tray-update", () => (app.view = "settings")),
       listen<string>("londopy-path", (e) => openLondopy(e.payload)),
+      listen<PageState>("web-state", (e) => {
+        const before = app.pages[e.payload.id];
+        app.pages[e.payload.id] = {
+          ...e.payload,
+          // an SSO provider's page doesn't say; keep what we knew
+          signedIn: e.payload.signedIn ?? before?.signedIn ?? null,
+          title: before?.title,
+        };
+      }),
+      listen<[string, string]>("web-title", (e) => {
+        const [id, title] = e.payload;
+        const page = app.pages[id];
+        if (page) page.title = title;
+      }),
     ];
     let stopUpdates = () => {};
 
@@ -111,6 +127,8 @@
       <main class="content">
         {#if app.view === "projects"}
           <Projects />
+        {:else if app.view === "web"}
+          <WebView />
         {:else if app.view === "settings"}
           <Settings {tex} onrescan={rescan} />
         {:else if app.view === "search"}
@@ -127,6 +145,7 @@
   </div>
   <StatusBar engine={engineLabel} />
   {#if app.paletteOpen}<CommandPalette />{/if}
+  <AccountDialog />
 {/if}
 <Toasts />
 

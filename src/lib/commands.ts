@@ -35,7 +35,41 @@ export function commands(): Command[] {
     keys: v.keys,
     run: go(v.view),
   }));
+  const accounts: Command[] = app.accounts.map((a) => ({
+    id: `account.open.${a.id}`,
+    title: `Open ${a.label}`,
+    group: "Overleaf",
+    run: () => app.openAccount(a.id),
+  }));
+  // page commands only make sense while a page is showing
+  const page = app.view === "web" ? app.account : null;
+  const pageCommands: Command[] = page
+    ? (
+        [
+          ["reload", "Reload the page", "Ctrl+Shift+R"],
+          ["home", "Go to all projects", undefined],
+          ["back", "Go back", undefined],
+          ["open-in-browser", "Open this page in your browser", undefined],
+        ] as const
+      ).map(([action, title, keys]) => ({
+        id: `page.${action}`,
+        title,
+        group: page.label,
+        keys,
+        run: () => api.webAction(page.id, action).catch((e) => app.toast("error", errText(e))),
+      }))
+    : [];
   return [
+    ...pageCommands,
+    ...accounts,
+    {
+      id: "account.add",
+      title: "Add an Overleaf account…",
+      group: "Overleaf",
+      run: () => {
+        app.accountDialog = { mode: "add" };
+      },
+    },
     ...views,
     { id: "view.settings", title: "Open Settings", group: "View", keys: "Ctrl+,", run: go("settings") },
     {

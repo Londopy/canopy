@@ -60,4 +60,23 @@ export type Routed =
   | { result: "forwarded"; app: string }
   | { result: "not-installed"; app: string; homepage: string };
 
-export type View = "projects" | "search" | "sync" | "history" | "dashboard" | "settings";
+export type View = "projects" | "web" | "search" | "sync" | "history" | "dashboard" | "settings";
+
+// what an account's page last reported (web.rs PageState)
+export interface PageState {
+  id: string;
+  url: string;
+  // null on pages that don't say, like an SSO provider's
+  signedIn: boolean | null;
+  loading: boolean;
+  title?: string;
+}
+
+export type WebAction = "back" | "forward" | "reload" | "home" | "open-in-browser";
+
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}

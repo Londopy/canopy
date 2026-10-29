@@ -20,3 +20,8 @@ what appears on its GitHub release page. Validated in CI by
 - Settings export and import as a `.londopy` file. Accounts stay on the computer they're on.
 - Signed in-app updates from GitHub Releases, installed only when you click
   **Install and restart**.
+- Overleaf accounts: add overleaf.com or a self-hosted server, rename, remove. Each account has
+  its own browser profile, so several accounts on one server stay signed in separately.
+- Web mode: the real Overleaf site inside Canopy, with back, forward, reload, all projects and
+  open in browser, and a signed-in indicator. New tabs on the account's server stay in Canopy;
+  new tabs on other sites open in your browser.

@@ -5,6 +5,7 @@
   let { engine }: { engine: string } = $props();
 
   const accounts = $derived(app.config?.accounts.length ?? 0);
+  const latest = $derived(app.toasts[app.toasts.length - 1]);
 </script>
 
 <footer class="status">
@@ -17,6 +18,9 @@
     {engine}
   </span>
   {#if app.lite}<span class="item pill">Lite</span>{/if}
+  {#if app.view === "web" && latest}
+    <span class="item toast {latest.kind}" role="status">{latest.text}</span>
+  {/if}
   <span class="spacer"></span>
   {#if app.update}
     <button class="item link" onclick={() => (app.view = "settings")}>
@@ -53,6 +57,19 @@
   .pill {
     color: var(--accent);
     font-weight: 600;
+  }
+  .toast {
+    color: var(--text);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .toast.ok {
+    color: var(--ok);
+  }
+  .toast.error {
+    color: var(--danger);
   }
   .link {
     border: 0;

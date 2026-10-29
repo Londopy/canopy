@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What Canopy's own UI may do. Overleaf webviews get none of this.",
-  "windows": ["main"],
+  "description": "What Canopy's own UI may do. Listed by webview, not window: the Overleaf pages are child webviews of the main window and get none of this.",
+  "webviews": ["main"],
   "permissions": [
     "core:default",
     "core:window:allow-set-theme",

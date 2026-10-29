@@ -31,6 +31,7 @@ export async function applySettingsFile(path: string) {
       title: "Import settings",
       kind: "warning",
       okLabel: "Import",
+      cancelLabel: "Cancel",
     });
     if (!yes) return;
     await api.setConfig(cfg);
@@ -53,6 +54,7 @@ export async function openLondopy(path: string) {
         (await ask(`This file belongs to ${routed.app}, which isn't installed.`, {
           title: "Not a Canopy file",
           okLabel: "Open download page",
+          cancelLabel: "Cancel",
         }));
       if (go) await openUrl(routed.homepage);
     } else if (routed.kind === "settings") {

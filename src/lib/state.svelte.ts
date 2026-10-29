@@ -1,7 +1,7 @@
 // app-wide state, shared by every component through runes
 
 import { api, errText } from "./api";
-import type { AppConfig, AppInfo, Theme, UpdateInfo, View } from "./types";
+import type { Account, AppConfig, AppInfo, PageState, Theme, UpdateInfo, View } from "./types";
 
 export interface Toast {
   id: number;
@@ -18,6 +18,11 @@ class AppState {
   toasts = $state<Toast[]>([]);
   // what the OS says, for theme = "system"
   systemDark = $state(false);
+  // web mode: the account whose page is open, and what each page last reported
+  activeAccount = $state<string | null>(null);
+  pages = $state<Record<string, PageState>>({});
+  // an account dialog is open: { mode: "add" } or { mode: "rename", account }
+  accountDialog = $state<{ mode: "add" } | { mode: "rename"; account: Account } | null>(null);
 
   private nextToast = 1;
 
@@ -29,6 +34,25 @@ class AppState {
   // web mode only: no local editor, watcher or language server
   get lite(): boolean {
     return !this.info?.full_build || !!this.config?.general.lite_mode;
+  }
+
+  get accounts(): Account[] {
+    return this.config?.accounts ?? [];
+  }
+
+  get account(): Account | null {
+    return this.accounts.find((a) => a.id === this.activeAccount) ?? null;
+  }
+
+  // something of ours is drawn over the content area. native webviews always
+  // paint on top of the shell, so the page has to step aside while it's up
+  get overlayOpen(): boolean {
+    return this.paletteOpen || this.accountDialog !== null;
+  }
+
+  openAccount(id: string) {
+    this.activeAccount = id;
+    this.view = "web";
   }
 
   async load() {

@@ -11,9 +11,11 @@ publish = false
 default-run = "Canopy"
 
 [lib]
-# the _lib suffix keeps the lib name apart from the bin on Windows (cargo#8519)
+# the _lib suffix keeps the lib name apart from the bin on Windows (cargo#8519).
+# rlib only: the template's staticlib/cdylib are for mobile targets, and each
+# one links every dependency in again, which costs gigabytes in target/
 name = "canopy_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [[bin]]
 name = "Canopy"
@@ -40,7 +42,9 @@ toml.workspace = true
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 zip = { version = "9", default-features = false, features = ["deflate"] }
 
-tauri = { version = "2", features = ["tray-icon"] }
+# unstable: child webviews, which web mode lays over the shell. 2.11.1 is the
+# first release that refuses commands from remote origins, which web mode leans on
+tauri = { version = "2.11.1", features = ["tray-icon", "unstable"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"

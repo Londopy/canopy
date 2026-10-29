@@ -148,6 +148,12 @@ impl AppConfig {
             Some(toml::Value::Array(items)) => items
                 .iter()
                 .filter_map(|v| match v.clone().try_into::<Account>() {
+                    // the id names a webview and a profile folder, so it must
+                    // be one canopy made: hex digits only
+                    Ok(a) if !crate::accounts::valid_id(&a.id) => {
+                        crate::dlog!("config.toml: skipping an account with id {:?}", a.id);
+                        None
+                    }
                     Ok(a) => Some(a),
                     Err(e) => {
                         crate::dlog!("config.toml: skipping an account: {e}");
@@ -279,14 +285,19 @@ engine = "xelatex"
 auto_update = false
 
 [[accounts]]
-id = "good"
+id = "00aa"
 label = "Uni"
 server = "https://tex.example.org"
 
 [[accounts]]
-id = "bad"
+id = "00bb"
 label = "Plain http"
 server = "http://tex.example.org"
+
+[[accounts]]
+id = "C:/evil"
+label = "Not an id canopy made"
+server = "https://tex.example.org"
 "#;
         let cfg = AppConfig::from_toml(text).unwrap();
         assert_eq!(cfg.general.theme, Theme::System);
@@ -295,7 +306,7 @@ server = "http://tex.example.org"
         assert_eq!(cfg.compile.engine, EnginePref::Auto);
         assert!(!cfg.updater.auto_update);
         assert_eq!(cfg.accounts.len(), 1);
-        assert_eq!(cfg.accounts[0].id, "good");
+        assert_eq!(cfg.accounts[0].id, "00aa");
     }
 
     #[test]

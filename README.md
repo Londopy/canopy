@@ -35,7 +35,9 @@ your way.
 | ✅ | Finds your TeX setup: `latexmk`/`pdflatex` from TeX Live or MiKTeX, Tectonic, `texlab`, `synctex` |
 | ✅ | Settings export and import as a `.londopy` file |
 | ✅ | In-app updates, signature-checked, installed only when you say so |
-| 🚧 | Overleaf accounts: overleaf.com and self-hosted servers, signed in on Overleaf's own page |
+| ✅ | Overleaf accounts: overleaf.com and self-hosted servers, as many as you like, each with its own sign-in |
+| ✅ | Web mode: the real Overleaf editor inside Canopy, with back, reload, all projects and open in browser |
+| 🚧 | Project list in Canopy itself (comes with sync) |
 | 🚧 | Two-way folder sync, with a three-way merge when both sides changed |
 | 🚧 | Local snapshots: automatic git history with diff and restore |
 | 🚧 | Local mode: editor, PDF preview with SyncTeX, local compiles, language server, project search |
@@ -74,7 +76,15 @@ the signature is checked before anything installs. Nothing installs until you cl
 
 ## Usage
 
-Start Canopy and press `Ctrl+Shift+P` (`Cmd+Shift+P` on macOS) for every command.
+Start Canopy, click **Add an Overleaf account**, pick overleaf.com or type your server's
+address, and sign in on Overleaf's own page. Canopy never sees your password. Every account
+keeps its own browser profile, so two accounts on the same server stay signed in separately.
+(On macOS older than 14, accounts share one profile.) Removing an account deletes its profile,
+which signs it out; your projects on the server aren't touched.
+
+Press `Ctrl+Shift+P` (`Cmd+Shift+P` on macOS) for every command. Shortcuts work while Canopy's
+own UI has focus; once you click into an Overleaf page, its keys are Overleaf's. Links that open
+a new tab stay in Canopy when they're on the account's server, and go to your browser otherwise.
 
 | Shortcut | Does |
 |---|---|
@@ -117,8 +127,8 @@ auto_update = true
 
 | | Browser | Canopy |
 |---|:---:|:---:|
-| The real Overleaf editor and collaboration | ✅ | 🚧 |
-| Self-hosted Overleaf and overleaf.com side by side | ❌ | 🚧 |
+| The real Overleaf editor and collaboration | ✅ | ✅ |
+| Self-hosted Overleaf and overleaf.com side by side | ❌ | ✅ |
 | Projects as folders on disk | ❌ | 🚧 |
 | Compiles without the free-plan timeout | ❌ | 🚧 |
 | Work offline | ❌ | 🚧 |

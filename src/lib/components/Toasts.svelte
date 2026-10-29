@@ -5,7 +5,9 @@
   const ICON = { info: "leaf", ok: "check", error: "alert" } as const;
 </script>
 
-<div class="stack" aria-live="polite">
+<!-- while an Overleaf page is showing, it would paint over these; the status
+     bar shows the newest one instead -->
+<div class="stack" aria-live="polite" hidden={app.view === "web" && !app.overlayOpen}>
   {#each app.toasts as t (t.id)}
     <div class="toast {t.kind}">
       <Icon name={ICON[t.kind]} size={16} />
@@ -25,6 +27,9 @@
     gap: 8px;
     z-index: 60;
     max-width: min(420px, 90vw);
+  }
+  .stack[hidden] {
+    display: none;
   }
   .toast {
     display: flex;

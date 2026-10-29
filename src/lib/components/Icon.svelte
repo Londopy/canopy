@@ -21,6 +21,9 @@
     alert: "M12 3l10 18H2zM12 10v4M12 17v.5",
     cloud: "M7 18a5 5 0 1 1 1-9.9A6 6 0 0 1 19.5 10 4 4 0 0 1 18 18z",
     feather: "M20 4c-6 0-12 4-14 14l-2 2M8 16h6M10 12h7",
+    external: "M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5",
+    pencil: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4",
+    trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
   };
 </script>
 

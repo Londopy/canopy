@@ -27,6 +27,8 @@ count as vulnerabilities:
   `.londopy` export, or being sent to any host other than the server it belongs to.
 - A web page shown in Canopy (including an Overleaf page or a self-hosted server's page)
   reaching Canopy's own commands: files, settings, the updater.
+- One account's page reading another account's cookies or storage (each account has its own
+  browser profile; macOS before 14 is the known exception).
 - A project path from a server writing outside the project's local folder (`..`, absolute
   paths, drive letters).
 - A crafted `.londopy` file doing anything but being refused or opened as settings: path
