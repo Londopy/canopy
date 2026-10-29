@@ -22,6 +22,14 @@
   --shadow-lg: 0 12px 32px rgba(15, 25, 20, 0.16), 0 2px 6px rgba(15, 25, 20, 0.08);
   --font: "Inter", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Code", "SF Mono", Consolas, "Liberation Mono", monospace;
+  /* LaTeX syntax colours for the editor */
+  --syn-command: #2f6fb0;
+  --syn-env: #8a4bb8;
+  --syn-math: #b35c1e;
+  --syn-comment: #8a948d;
+  --syn-bracket: #56615a;
+  --syn-string: #2f8f5b;
+  --warn: #b9791b;
 }
 
 :root[data-theme="dark"] {
@@ -43,6 +51,13 @@
   --danger: #e2675e;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 14px 40px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --syn-command: #7fb2e8;
+  --syn-env: #c49be6;
+  --syn-math: #e8a46a;
+  --syn-comment: #6f7a73;
+  --syn-bracket: #a3aea7;
+  --syn-string: #6fd39c;
+  --warn: #e0a84a;
 }
 
 * {

@@ -11,6 +11,9 @@ publish = false
 
 [dependencies]
 serde.workspace = true
+thiserror.workspace = true
+regex.workspace = true
+flate2.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

@@ -17,7 +17,7 @@ mod paths;
 pub mod plan;
 pub mod store;
 
-pub use engine::{restore, sync, Options, Remote, Report, Restored, SyncError};
+pub use engine::{restore, sync, write_project_file, Options, Remote, Report, Restored, SyncError};
 pub use files::{Files, Loaded, Skipped};
 pub use overleaf::OverleafRemote;
 pub use paths::{project_path, resolve, PathError};

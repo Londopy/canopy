@@ -24,6 +24,10 @@ class AppState {
   // sync: where each linked project stands, and which link the snapshots view shows
   sync = $state<Record<string, LinkStatus>>({});
   historyLink = $state<string | null>(null);
+  // local mode: which synced project the editor shows
+  editorLink = $state<string | null>(null);
+  // a file and line for the editor to open next (from search, the dashboard)
+  editorOpen = $state<{ path: string; line: number } | null>(null);
   // an account dialog is open: { mode: "add" } or { mode: "rename", account }
   accountDialog = $state<{ mode: "add" } | { mode: "rename"; account: Account } | null>(null);
 

@@ -317,13 +317,33 @@ fn linked_ancestor(root: &Path, target: &Path) -> Option<PathBuf> {
     None
 }
 
+/// Writes one file of a linked folder the way sync does: the path checked
+/// (no `..`, no names Windows can't store), never through a symlink or
+/// junction, and atomically. For the editor saving into the folder.
+pub fn write_project_file(folder: &Path, path: &str, data: &[u8]) -> Result<(), SyncError> {
+    let target = crate::resolve(folder, path).map_err(FilesError::from)?;
+    if let Some(link) = linked_ancestor(folder, &target) {
+        return Err(SyncError::Write {
+            path: path.to_string(),
+            source: std::io::Error::other(format!("{} is a link", link.display())),
+        });
+    }
+    write_atomic(&target, data).map_err(|source| SyncError::Write {
+        path: path.to_string(),
+        source,
+    })
+}
+
 // temp file and rename, so a crash never leaves half a file
 fn write_atomic(target: &Path, data: &[u8]) -> std::io::Result<()> {
     if let Some(dir) = target.parent() {
         std::fs::create_dir_all(dir)?;
     }
+    // unique per write: two writers (a save and a sync) never share a temp file
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let mut tmp = target.as_os_str().to_owned();
-    tmp.push(".canopy-tmp");
+    tmp.push(format!(".{}-{n}.canopy-tmp", std::process::id()));
     let tmp = PathBuf::from(tmp);
     std::fs::write(&tmp, data)?;
     std::fs::rename(&tmp, target).inspect_err(|_| {

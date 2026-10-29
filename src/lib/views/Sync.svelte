@@ -112,6 +112,9 @@
             <button class="ghost small" onclick={() => history(link)}>
               <Icon name="history" size={14} /> Snapshots
             </button>
+            <button class="ghost small" onclick={() => ((app.editorLink = link.id), (app.view = "editor"))}>
+              <Icon name="code" size={14} /> Edit here
+            </button>
             <label class="auto">
               <input type="checkbox" class="switch" checked={link.auto_sync} onchange={(e) => setAuto(link, e.currentTarget.checked)} />
               Sync on its own

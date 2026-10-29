@@ -461,9 +461,12 @@ dependencies = [
 name = "canopy-texkit"
 version = "0.1.0"
 dependencies = [
+ "flate2",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

@@ -31,4 +31,9 @@ what appears on its GitHub release page. Validated in CI by
   merge, and same-line edits leave conflict markers that are never uploaded. Build output stays
   local, and a sync that would delete most of one side asks first.
 - Snapshots: every sync is kept in a local git history, with a per-file diff and one-click
-  restore.
+  restore. Restoring saves the folder as it was first, as a "Before restore" snapshot.
+- Local mode: a LaTeX editor (CodeMirror) on a synced project's folder, local compiles with
+  latexmk, pdfLaTeX/XeLaTeX/LuaLaTeX run directly (for MiKTeX without Perl) or Tectonic, a PDF
+  preview, SyncTeX in both directions, and a problems panel from the log. Compiles never run
+  code from the project: shell escape is off and `.latexmkrc` isn't read.
+- The Canopy logo.

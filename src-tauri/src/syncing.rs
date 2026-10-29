@@ -228,6 +228,7 @@ pub async fn link_project(
             project_name: project_name.clone(),
             folder: folder.clone(),
             auto_sync: true,
+            main_file: None,
         });
         Ok(id)
     })?;

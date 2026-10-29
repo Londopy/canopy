@@ -127,7 +127,7 @@ export type Routed =
   | { result: "forwarded"; app: string }
   | { result: "not-installed"; app: string; homepage: string };
 
-export type View = "projects" | "web" | "search" | "sync" | "history" | "dashboard" | "settings";
+export type View = "projects" | "web" | "editor" | "search" | "sync" | "history" | "dashboard" | "settings";
 
 // what an account's page last reported (web.rs PageState)
 export interface PageState {
@@ -146,4 +146,45 @@ export interface Rect {
   y: number;
   width: number;
   height: number;
+}
+
+// local mode
+export interface FileEntry {
+  path: string;
+  size: number;
+}
+
+export interface Diagnostic {
+  severity: "error" | "warning" | "badbox";
+  file: string | null;
+  line: number | null;
+  message: string;
+}
+
+export interface CompileOutcome {
+  ok: boolean;
+  engine: "latexmk" | "pdflatex" | "tectonic";
+  program: "pdflatex" | "xelatex" | "lualatex";
+  pdf: string | null;
+  synctex: string | null;
+  diagnostics: Diagnostic[];
+  output_tail: string;
+  runs: number;
+  seconds: number;
+  cancelled: boolean;
+  timed_out: boolean;
+}
+
+// a place on a PDF page, in PDF points from the top-left corner
+export interface Spot {
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface SourceSpot {
+  path: string;
+  line: number;
 }

@@ -4,6 +4,8 @@
 
 mod accounts;
 pub mod config;
+#[cfg(feature = "full")]
+mod local;
 #[macro_use]
 pub mod log_util;
 // kept identical to the copy every Londopy app ships. tauri hands files to the
@@ -34,6 +36,8 @@ pub struct AppState {
     web: tauri::async_runtime::Mutex<web::WebCtl>,
     #[cfg(feature = "full")]
     syncer: syncing::Syncer,
+    #[cfg(feature = "full")]
+    local: local::Local,
 }
 
 // a poisoned lock only means another thread panicked mid-update; the data is
@@ -366,6 +370,8 @@ pub fn run() {
             web: Default::default(),
             #[cfg(feature = "full")]
             syncer: Default::default(),
+            #[cfg(feature = "full")]
+            local: Default::default(),
         })
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -430,8 +436,16 @@ pub fn run() {
             }
         })
         .invoke_handler(handler())
-        .run(tauri::generate_context!())
-        .expect("error while running Canopy");
+        .build(tauri::generate_context!())
+        .expect("error while starting Canopy")
+        .run(|_app, _event| {
+            // quitting stops any compile still running, so no TeX program
+            // outlives Canopy
+            #[cfg(feature = "full")]
+            if let tauri::RunEvent::Exit = _event {
+                local::cancel_all(_app);
+            }
+        });
 }
 
 // every build's commands, plus whatever the build adds
@@ -475,6 +489,17 @@ fn handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 
         syncing::snapshot_diff,
         syncing::restore_snapshot,
         syncing::open_link_folder,
+        local::local_files,
+        local::read_text,
+        local::write_text,
+        local::create_text,
+        local::main_file,
+        local::set_main_file,
+        local::compile_project,
+        local::cancel_compile,
+        local::read_pdf,
+        local::synctex_forward,
+        local::synctex_backward,
     ]
 }
 

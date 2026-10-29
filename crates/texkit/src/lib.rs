@@ -1,8 +1,15 @@
 //! The local TeX toolchain: which tools are installed and which engine to use.
 //!
-//! Canopy prefers a TeX Live or MiKTeX install driven by `latexmk`, and falls
-//! back to Tectonic, which fetches packages on demand. Running compiles and
-//! parsing their logs arrive with local mode; this crate only finds the tools.
+//! Canopy prefers a TeX Live or MiKTeX install driven by `latexmk`; when
+//! latexmk is there but can't run (MiKTeX ships it without Perl), it runs the
+//! engine itself; with no TeX install at all it uses Tectonic, which fetches
+//! packages on demand. [`compile`] runs builds, [`log`] reads their logs and
+//! [`synctex`] maps between source lines and PDF positions.
+
+pub mod compile;
+pub mod log;
+pub mod synctex;
+pub mod words;
 
 use serde::{Deserialize, Serialize};
 use std::ffi::OsString;
@@ -29,6 +36,9 @@ pub enum EnginePref {
 pub enum Engine {
     /// `latexmk` from a TeX Live or MiKTeX install.
     Latexmk,
+    /// The engine run directly (pdfLaTeX, XeLaTeX or LuaLaTeX, plus BibTeX or
+    /// Biber), for a TeX install whose latexmk can't run.
+    Pdflatex,
     /// The self-contained Tectonic engine.
     Tectonic,
 }
@@ -38,6 +48,10 @@ pub enum Engine {
 pub struct Toolchain {
     /// `latexmk`, the build driver that ships with TeX Live and MiKTeX.
     pub latexmk: Option<PathBuf>,
+    /// Whether that latexmk actually runs. MiKTeX installs it without the
+    /// Perl it needs, and then it fails at once.
+    #[serde(default)]
+    pub latexmk_runs: bool,
     /// `pdflatex`, a sign that a TeX distribution is really there.
     pub pdflatex: Option<PathBuf>,
     /// `tectonic`, either on PATH or downloaded by Canopy.
@@ -52,17 +66,18 @@ impl Toolchain {
     /// Looks for every tool on `PATH`, plus `extra_dirs` (where Canopy keeps
     /// the tools it downloads), which are searched first.
     pub fn detect(extra_dirs: &[PathBuf]) -> Self {
-        let path = std::env::var_os("PATH").unwrap_or_default();
-        let mut dirs: Vec<PathBuf> = extra_dirs.to_vec();
-        dirs.extend(std::env::split_paths(&path));
-        Self::detect_in(&dirs, &exe_extensions())
+        let mut tc = Self::detect_in(&search_path(extra_dirs), &exe_extensions());
+        tc.latexmk_runs = tc.latexmk.as_deref().is_some_and(runs);
+        tc
     }
 
     /// [`Toolchain::detect`] with an explicit search path, for tests.
     pub fn detect_in(dirs: &[PathBuf], exts: &[OsString]) -> Self {
         let find = |name: &str| find_program(name, dirs, exts);
+        let latexmk = find("latexmk");
         Self {
-            latexmk: find("latexmk"),
+            latexmk_runs: latexmk.is_some(),
+            latexmk,
             pdflatex: find("pdflatex"),
             tectonic: find("tectonic"),
             texlab: find("texlab"),
@@ -74,12 +89,61 @@ impl Toolchain {
     /// preferred tool is missing (the UI then offers to install Tectonic) or
     /// the user chose remote compiles.
     pub fn choose(&self, pref: EnginePref) -> Option<Engine> {
+        let latexmk = self.latexmk.is_some() && self.latexmk_runs;
+        let direct = self.pdflatex.is_some();
         match pref {
-            EnginePref::Auto if self.latexmk.is_some() => Some(Engine::Latexmk),
+            EnginePref::Auto | EnginePref::Latexmk if latexmk => Some(Engine::Latexmk),
+            EnginePref::Auto | EnginePref::Latexmk if direct => Some(Engine::Pdflatex),
             EnginePref::Auto if self.tectonic.is_some() => Some(Engine::Tectonic),
-            EnginePref::Latexmk if self.latexmk.is_some() => Some(Engine::Latexmk),
             EnginePref::Tectonic if self.tectonic.is_some() => Some(Engine::Tectonic),
             _ => None,
+        }
+    }
+}
+
+/// `extra_dirs` followed by every folder on PATH: where programs are looked for.
+pub fn search_path(extra_dirs: &[PathBuf]) -> Vec<PathBuf> {
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    let mut dirs: Vec<PathBuf> = extra_dirs.to_vec();
+    dirs.extend(std::env::split_paths(&path));
+    // an app started from Finder gets a bare PATH without MacTeX or Homebrew
+    if cfg!(target_os = "macos") {
+        for d in ["/Library/TeX/texbin", "/opt/homebrew/bin", "/usr/local/bin"] {
+            let d = PathBuf::from(d);
+            if !dirs.contains(&d) {
+                dirs.push(d);
+            }
+        }
+    }
+    dirs
+}
+
+// whether a program starts at all (`latexmk -v` prints its version and exits)
+fn runs(program: &Path) -> bool {
+    let mut cmd = std::process::Command::new(program);
+    cmd.arg("-v")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000);
+    }
+    let Ok(mut child) = cmd.spawn() else {
+        return false;
+    };
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return status.success(),
+            Ok(None) if std::time::Instant::now() < deadline => {
+                std::thread::sleep(std::time::Duration::from_millis(50))
+            }
+            _ => {
+                let _ = child.kill();
+                return false;
+            }
         }
     }
 }
@@ -204,6 +268,14 @@ mod tests {
         let none = Toolchain::default();
         let mk = Toolchain {
             latexmk: Some("latexmk".into()),
+            latexmk_runs: true,
+            ..Default::default()
+        };
+        // MiKTeX without Perl: latexmk is there but can't run
+        let miktex = Toolchain {
+            latexmk: Some("latexmk".into()),
+            latexmk_runs: false,
+            pdflatex: Some("pdflatex".into()),
             ..Default::default()
         };
         let tect = Toolchain {
@@ -212,6 +284,7 @@ mod tests {
         };
         let both = Toolchain {
             latexmk: mk.latexmk.clone(),
+            latexmk_runs: true,
             tectonic: tect.tectonic.clone(),
             ..Default::default()
         };
@@ -223,6 +296,9 @@ mod tests {
         assert_eq!(both.choose(EnginePref::Tectonic), Some(Engine::Tectonic));
         assert_eq!(tect.choose(EnginePref::Latexmk), None);
         assert_eq!(both.choose(EnginePref::Remote), None);
+        assert_eq!(miktex.choose(EnginePref::Auto), Some(Engine::Pdflatex));
+        assert_eq!(miktex.choose(EnginePref::Latexmk), Some(Engine::Pdflatex));
+        assert_eq!(miktex.choose(EnginePref::Tectonic), None);
     }
 
     #[test]

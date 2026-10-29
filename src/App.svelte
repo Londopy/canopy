@@ -138,6 +138,11 @@
           <Projects />
         {:else if app.view === "web"}
           <WebView />
+        {:else if app.view === "editor"}
+          <!-- CodeMirror and PDF.js load only when the editor first opens -->
+          {#await import("./lib/views/Editor.svelte") then m}
+            <m.default />
+          {/await}
         {:else if app.view === "settings"}
           <Settings {tex} onrescan={rescan} />
         {:else if app.view === "search"}

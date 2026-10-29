@@ -37,6 +37,9 @@ count as vulnerabilities:
 - A project file from the server landing in a `.git` folder (or `.GIT`, `GIT~1`, and other
   spellings that reach the same folder), which could plant git hooks.
 - Sync uploading a file that still has unresolved conflict markers.
+- A project's files running code on this computer during a local compile (shell escape,
+  a `.latexmkrc`, or anything else that reaches a command line), or writing files anywhere but
+  Canopy's build folder.
 - A crafted `.londopy` file doing anything but being refused or opened as settings: path
   traversal, unbounded memory, running code.
 - The updater installing anything whose signature doesn't verify against the public key
@@ -49,9 +52,10 @@ These are not:
   folder or install folder.
 - What an Overleaf server does with your projects. Canopy is a client; report server issues
   to Overleaf or to whoever runs your self-hosted instance.
-- Running `latexmk` or Tectonic on a project you chose to compile. TeX can read files and, with
-  shell escape, run programs; compile only projects you trust, as you would on the command
-  line.
+- A document reading another file on this computer into its own PDF during a local compile.
+  TeX allows that by default; Canopy turns it off for TeX Live, but MiKTeX ignores the setting.
+  The PDF stays in Canopy's build folder and is never uploaded, so this needs you to share the
+  PDF yourself.
 
 ## Unsigned binaries
 

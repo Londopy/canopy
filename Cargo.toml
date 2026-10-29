@@ -30,6 +30,8 @@ zip = { version = "9", default-features = false, features = ["deflate"] }
 notify = "8"
 notify-debouncer-full = "0.7"
 diffy = "0.5"
+regex = "1"
+flate2 = "1"
 git2 = { version = "0.21", default-features = false, features = ["vendored-libgit2"] }
 
 canopy-overleaf = { path = "crates/overleaf-client" }

@@ -25,6 +25,7 @@ export const VIEWS: { view: View; title: string; icon: string; keys: string; ful
   { view: "sync", title: "Sync", icon: "sync", keys: "Ctrl+3", full: true },
   { view: "history", title: "Snapshots", icon: "history", keys: "Ctrl+4", full: true },
   { view: "dashboard", title: "Writing dashboard", icon: "chart", keys: "Ctrl+5" },
+  { view: "editor", title: "Editor", icon: "code", keys: "Ctrl+6", full: true },
 ];
 
 export function commands(): Command[] {
@@ -59,9 +60,22 @@ export function commands(): Command[] {
         run: () => api.webAction(page.id, action).catch((e) => app.toast("error", errText(e))),
       }))
     : [];
+  // edit a synced project on this computer (full build only)
+  const editCommands: Command[] = app.lite
+    ? []
+    : (app.config?.links ?? []).map((l) => ({
+        id: `editor.open.${l.id}`,
+        title: `Edit ${l.project_name} here`,
+        group: "Editor",
+        run: () => {
+          app.editorLink = l.id;
+          app.view = "editor";
+        },
+      }));
   return [
     ...pageCommands,
     ...accounts,
+    ...editCommands,
     {
       id: "account.add",
       title: "Add an Overleaf account…",

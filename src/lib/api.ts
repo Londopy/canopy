@@ -5,12 +5,16 @@ import type {
   AppConfig,
   AppInfo,
   Change,
+  CompileOutcome,
+  FileEntry,
   LinkStatus,
   ProjectSummary,
   Rect,
   RestoreReport,
   Routed,
   Snapshot,
+  SourceSpot,
+  Spot,
   SyncReport,
   TexReport,
   UpdateInfo,
@@ -54,6 +58,24 @@ export const api = {
   restoreSnapshot: (linkId: string, snapshotId: string) =>
     invoke<RestoreReport>("restore_snapshot", { linkId, snapshotId }),
   openLinkFolder: (linkId: string) => invoke<void>("open_link_folder", { linkId }),
+  // local mode (full build only)
+  localFiles: (linkId: string) => invoke<FileEntry[]>("local_files", { linkId }),
+  readText: (linkId: string, path: string) => invoke<string>("read_text", { linkId, path }),
+  // `base` is the text the editor last loaded or saved: a change made to the
+  // file since then is merged in; same-line edits fail with "conflict: ..."
+  writeText: (linkId: string, path: string, text: string, base: string | null, force: boolean) =>
+    invoke<{ text: string; merged: boolean }>("write_text", { linkId, path, text, base, force }),
+  createText: (linkId: string, path: string) => invoke<void>("create_text", { linkId, path }),
+  mainFile: (linkId: string) => invoke<string | null>("main_file", { linkId }),
+  setMainFile: (linkId: string, path: string) => invoke<void>("set_main_file", { linkId, path }),
+  compile: (linkId: string) => invoke<CompileOutcome>("compile_project", { linkId }),
+  cancelCompile: (linkId: string) => invoke<void>("cancel_compile", { linkId }),
+  // raw bytes, not JSON
+  readPdf: (linkId: string) => invoke<ArrayBuffer>("read_pdf", { linkId }),
+  synctexForward: (linkId: string, path: string, line: number) =>
+    invoke<Spot[]>("synctex_forward", { linkId, path, line }),
+  synctexBackward: (linkId: string, page: number, x: number, y: number) =>
+    invoke<SourceSpot | null>("synctex_backward", { linkId, page, x, y }),
 };
 
 // tauri commands reject with a plain string; anything else gets stringified

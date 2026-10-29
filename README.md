@@ -40,7 +40,8 @@ your way.
 | ✅ | Each account's project list in Canopy |
 | ✅ | Two-way folder sync: edit in any editor, Canopy syncs on save and pulls Overleaf's changes; edits on both sides merge |
 | ✅ | Snapshots: a local git history of every sync, with diffs and one-click restore |
-| 🚧 | Local mode: editor, PDF preview with SyncTeX, local compiles, language server, project search |
+| ✅ | Local mode: a LaTeX editor on the synced folder, local compiles, a PDF preview, and SyncTeX both ways |
+| 🚧 | Language server (completion, diagnostics as you type), project search, terminal |
 | 🚧 | Zotero citation picker and `.bib` sync |
 | 🚧 | Writing dashboard: word counts per section, daily goals, deadlines |
 | 🚧 | Canopy Lite, a smaller web-mode-only download |
@@ -89,7 +90,11 @@ a new tab stay in Canopy when they're on the account's server, and go to your br
 | Shortcut | Does |
 |---|---|
 | `Ctrl+Shift+P` or `Ctrl+K` | Command palette |
-| `Ctrl+1` … `Ctrl+5` | Projects, Search, Sync, Snapshots, Dashboard |
+| `Ctrl+1` … `Ctrl+6` | Projects, Search, Sync, Snapshots, Dashboard, Editor |
+| `Ctrl+S` | Save (and compile, with **Compile on save** on) |
+| `Ctrl+Enter` | Compile |
+| `Ctrl+Alt+J` | Show the current line in the PDF |
+| Double-click the PDF | Jump to that line in the source |
 | `Ctrl+,` | Settings |
 | `Ctrl+Shift+L` | Switch between light and dark |
 
@@ -119,6 +124,39 @@ A changed document is updated in place (it stays the same document on Overleaf, 
 continues). Renaming or moving a file in the folder shows up on Overleaf as a delete and a new
 file. If someone types in a document on Overleaf in the seconds between Canopy's download and
 its upload, the upload wins; the snapshot before it still has their text.
+
+### Editing and compiling on this computer
+
+Open a synced project in **Editor** (`Ctrl+6`, or **Edit here** in **Sync**). It edits the
+files in the project's folder, so saving there is just like saving from any other editor:
+sync uploads it a moment later.
+
+**Compile** (`Ctrl+Enter`) builds the PDF with the TeX install on this computer, with no free-plan
+timeout and no internet needed (Canopy only stops a compile that runs past 5 minutes, which means
+it has hung):
+
+- **latexmk** when it works. MiKTeX installs latexmk without the Perl it needs; then Canopy runs
+  `pdflatex`, `xelatex` or `lualatex` itself, with BibTeX or Biber and the reruns
+  references need.
+- **Tectonic** when there's no TeX install.
+- XeLaTeX for documents that load `fontspec`, or name a program with `% !TEX program = xelatex`.
+- The main file is `main.tex`, or the file with `\documentclass`; pick another under **Main**.
+
+Errors and warnings show under the editor and in the margin; click one to go to its line.
+Build output goes to Canopy's own data folder, never into the project.
+
+Project files come from everyone who can edit the project on Overleaf, so a compile never runs
+code from them: shell escape is off, latexmk doesn't read the project's `.latexmkrc`, a
+`%&format` first line is ignored, no file name is ever taken for a program option, and Biber
+runs in the build folder with its config files off.
+
+Saving merges: if a sync changed a file while you had unsaved edits to it, saving combines the
+two. If you both changed the same lines, Canopy asks before saving yours over theirs (theirs
+stays in **Snapshots** either way). If
+a document needs `--shell-escape` (`minted`, for example), compile it on Overleaf.
+
+MiKTeX asks before it installs a missing package. When a compile takes a while, look for its
+window: it may be behind Canopy.
 
 ## .londopy files
 
@@ -168,8 +206,8 @@ so `git log` works on it too.
 | The real Overleaf editor and collaboration | ✅ | ✅ |
 | Self-hosted Overleaf and overleaf.com side by side | ❌ | ✅ |
 | Projects as folders on disk | ❌ | ✅ |
-| Compiles without the free-plan timeout | ❌ | 🚧 |
-| Work offline | ❌ | 🚧 |
+| Compiles without the free-plan timeout | ❌ | ✅ |
+| Work offline | ❌ | ✅ |
 | Version history without premium | ❌ | ✅ |
 
 Canopy is an independent project and isn't affiliated with Overleaf. Overleaf has no public

@@ -99,6 +99,9 @@ pub struct SyncLink {
     // sync on its own: when files in the folder change, and every few minutes
     #[serde(default = "yes")]
     pub auto_sync: bool,
+    // the file local compiles build, relative to the folder; None = guess
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub main_file: Option<String>,
 }
 
 fn yes() -> bool {
@@ -337,6 +340,7 @@ mod tests {
                 project_name: "Thesis".into(),
                 folder: std::env::temp_dir().join("Thesis"),
                 auto_sync: false,
+                main_file: Some("thesis.tex".into()),
             }],
         };
         let back = AppConfig::from_toml(&cfg.to_toml().unwrap()).unwrap();
