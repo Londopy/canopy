@@ -8,6 +8,8 @@ what appears on its GitHub release page. Validated in CI by
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-29
+
 ### Added
 
 - The app shell: activity bar, command palette (`Ctrl+Shift+P`), status bar, toasts, and light
@@ -48,3 +50,6 @@ what appears on its GitHub release page. Validated in CI by
 - `install.ps1` and `install.cmd`: install the right build for your PC from the latest release,
   checked against `SHA256SUMS.txt` (`-Portable`, `-Lite`, `-Msi`, `-AllUsers`, `-Version`).
 - Canopy Lite portable builds for Windows (x64, x86, arm64) in every release.
+
+[Unreleased]: https://github.com/Londopy/canopy/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Londopy/canopy/releases/tag/v0.1.0
