@@ -129,7 +129,7 @@ jobs:
 
       # builds the bundles and the signed updater artifacts for this target,
       # uploads them to the draft release, and merges this platform into latest.json
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
