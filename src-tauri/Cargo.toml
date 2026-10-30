@@ -74,7 +74,7 @@ tauri-plugin-updater = "2"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
-windows = { version = "0.58", features = ["Win32_UI_Shell"] }
+windows = { version = "0.62", features = ["Win32_UI_Shell"] }
 
 [dev-dependencies]
 tempfile.workspace = true
