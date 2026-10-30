@@ -461,11 +461,26 @@ mod tests {
 
     #[test]
     fn synctex_paths_become_project_paths() {
-        let root = Path::new("C:\\proj");
+        // absolute paths as this system writes them
+        let (root, inside, outside) = if cfg!(windows) {
+            (
+                "C:\\proj",
+                "C:\\proj\\chapters\\one.tex",
+                "C:\\texmf\\article.cls",
+            )
+        } else {
+            (
+                "/proj",
+                "/proj/chapters/one.tex",
+                "/usr/share/texmf/article.cls",
+            )
+        };
+        let root = Path::new(root);
         assert_eq!(
-            relative_to(root, Path::new("C:\\proj\\chapters\\one.tex")).as_deref(),
+            relative_to(root, Path::new(inside)).as_deref(),
             Some("chapters/one.tex")
         );
+        assert!(relative_to(root, Path::new(outside)).is_none());
         assert_eq!(
             relative_to(root, Path::new("./main.tex")).as_deref(),
             Some("main.tex")
