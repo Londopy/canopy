@@ -1,11 +1,15 @@
 <script lang="ts">
+  import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { ask } from "@tauri-apps/plugin-dialog";
-  import { onDestroy, onMount } from "svelte";
+  import { onDestroy, onMount, tick } from "svelte";
   import { api, errText } from "../api";
   import CodeEditor, { type CodeEditorApi } from "../components/CodeEditor.svelte";
   import Icon from "../components/Icon.svelte";
+  import CitePicker from "../components/CitePicker.svelte";
   import PdfView, { type PdfViewApi } from "../components/PdfView.svelte";
+  import Terminal from "../components/Terminal.svelte";
+  import { LspClient } from "../lsp";
   import { app } from "../state.svelte";
   import type { CompileOutcome, Diagnostic, FileEntry } from "../types";
 
@@ -62,7 +66,81 @@
   const problems = $derived(outcome?.diagnostics ?? []);
   const errors = $derived(problems.filter((d) => d.severity === "error").length);
   const warnings = $derived(problems.filter((d) => d.severity !== "error").length);
-  const fileProblems = $derived(problems.filter((d) => d.file === current));
+  // problems for the open file: the last compile's, plus the language server's
+  let lspProblems = $state<Record<string, Diagnostic[]>>({});
+  const fileProblems = $derived([
+    ...problems.filter((d) => d.file === current),
+    ...(current ? (lspProblems[current] ?? []) : []),
+  ]);
+
+  // the language server (texlab): null until it runs; "missing" when it
+  // isn't installed, which shows an install button
+  let lsp = $state.raw<LspClient | null>(null);
+  let lspState = $state<"off" | "missing" | "installing" | "on">("off");
+  let showTerminal = $state(false);
+  let citing = $state(false);
+  const bibFiles = $derived(files.map((f) => f.path).filter((p) => p.toLowerCase().endsWith(".bib")));
+
+  async function startLsp(id: string) {
+    lsp?.stop();
+    lsp = null;
+    lspProblems = {};
+    const folder = app.config?.links.find((l) => l.id === id)?.folder;
+    if (!folder) return;
+    const client = new LspClient(id, folder, (path, list) => {
+      if (bufferProject === id) lspProblems[path] = list;
+    });
+    try {
+      const running = await client.start();
+      if (bufferProject !== id) {
+        client.stop();
+        return;
+      }
+      if (!running) {
+        lspState = "missing";
+        return;
+      }
+      lsp = client;
+      lspState = "on";
+      for (const path of openPaths) lsp.open(path, editor?.text(path) ?? "");
+    } catch (e) {
+      lspState = "off";
+      app.toast("error", `The language server didn't start: ${errText(e)}`);
+    }
+  }
+
+  async function installTexlab() {
+    lspState = "installing";
+    try {
+      await invoke("install_texlab");
+      app.toast("ok", "Installed texlab, the LaTeX language server.");
+      if (bufferProject) await startLsp(bufferProject);
+    } catch (e) {
+      lspState = "missing";
+      app.toast("error", errText(e));
+    }
+  }
+
+  // full text to the server a moment after typing stops
+  const pendingChange: Record<string, ReturnType<typeof setTimeout>> = {};
+  function changed(path: string) {
+    dirty[path] = editor?.dirty(path) ?? true;
+    clearTimeout(pendingChange[path]);
+    pendingChange[path] = setTimeout(() => lsp?.change(path, editor?.text(path) ?? ""), 300);
+  }
+
+  // the typed text not yet sent goes now, and lands before the next request
+  function flush(path: string): Promise<void> {
+    clearTimeout(pendingChange[path]);
+    return lsp?.change(path, editor?.text(path) ?? "") ?? Promise.resolve();
+  }
+
+  async function definition(line: number, character: number) {
+    if (!lsp || !current) return;
+    await flush(current);
+    const hit = await lsp.definition(current, line, character);
+    if (hit) await openFile(hit.path, hit.line);
+  }
 
   // the tree: folders first, by path
   type Row = { kind: "dir" | "file"; path: string; name: string; depth: number; size?: number };
@@ -100,6 +178,8 @@
     }
     editor?.reset();
     bufferProject = id;
+    ready = false;
+    void startLsp(id);
     files = [];
     openPaths = [];
     current = null;
@@ -114,7 +194,11 @@
     } catch (e) {
       app.toast("error", errText(e));
     }
+    if (bufferProject === id) ready = true;
   }
+
+  // the project has loaded and opened its main file
+  let ready = $state(false);
 
   let loadedFor: string | null = null;
   $effect(() => {
@@ -130,7 +214,7 @@
   // once the project is loaded
   $effect(() => {
     const req = app.editorOpen;
-    if (req && editor && bufferProject === linkId && files.length) {
+    if (req && editor && ready && bufferProject === linkId) {
       app.editorOpen = null;
       void openFile(req.path, req.line);
     }
@@ -147,18 +231,24 @@
         const text = await api.readText(linkId, path);
         editor.open(path, text);
         openPaths = [...openPaths, path];
+        lsp?.open(path, text);
       } catch (e) {
         app.toast("error", errText(e));
         return;
       }
     }
     current = path;
-    if (line) queueMicrotask(() => editor?.goto(line));
+    if (line) {
+      // after the editor has switched to the file
+      await tick();
+      editor?.goto(line);
+    }
   }
 
   function closeFile(path: string) {
     if (editor?.dirty(path) && !confirm(`${path} has unsaved changes. Close it anyway?`)) return;
     editor?.forget(path);
+    lsp?.close(path);
     openPaths = openPaths.filter((p) => p !== path);
     delete dirty[path];
     if (current === path) current = openPaths[openPaths.length - 1] ?? null;
@@ -200,10 +290,12 @@
         }
         if (r.merged) {
           editor.replaceSaved(path, r.text);
+          lsp?.change(path, r.text);
           app.toast("info", `Merged a change from Overleaf into ${path}.`);
         } else {
           editor.markSaved(path, text);
         }
+        lsp?.saved(path);
         dirty[path] = editor.dirty(path);
       } catch (e) {
         ok = false;
@@ -330,8 +422,9 @@
             warned[path] = text;
             app.toast("info", `${path} changed on Overleaf while you have unsaved edits here. Saving merges the two.`);
           }
-        } else {
-          editor?.reloadIfClean(path, text);
+        } else if (editor?.reloadIfClean(path, text)) {
+          // a background tab fires no change of its own: tell the server
+          void lsp?.change(path, text);
         }
       } catch {
         // deleted on the other side: leave the buffer, the user can save it back
@@ -363,7 +456,18 @@
       if (e.payload.linkId === linkId) compiling = e.payload.running;
     });
   });
-  onDestroy(() => unlisten?.());
+  onDestroy(() => {
+    unlisten?.();
+    lsp?.stop();
+  });
+
+  function onkey(e: KeyboardEvent) {
+    // Ctrl+` opens and closes the terminal, as in VS Code
+    if ((e.ctrlKey || e.metaKey) && e.key === "`") {
+      e.preventDefault();
+      showTerminal = !showTerminal;
+    }
+  }
 
   // leaving with unsaved edits saves them: they'd be lost otherwise
   onDestroy(() => {
@@ -375,6 +479,21 @@
     return n < 1024 ? `${n} B` : n < 1048576 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`;
   }
 </script>
+
+<svelte:window onkeydown={onkey} />
+
+{#if citing && linkId}
+  <CitePicker
+    {linkId}
+    {bibFiles}
+    oninsert={(keys) => {
+      editor?.insert(`\\cite{${keys.join(",")}}`);
+      // the .bib just changed on disk: reload it if it's open, and the tree
+      if (bufferProject) void refreshFromDisk(bufferProject);
+    }}
+    onclose={() => (citing = false)}
+  />
+{/if}
 
 {#if !link}
   <section class="empty">
@@ -473,7 +592,14 @@
           {/each}
           <span class="spacer"></span>
           {#if current}
+            {#if lspState === "missing"}
+              <button class="ghost tiny" title="Completion, hover help and live errors come from texlab, the LaTeX language server (about 10 MB)" onclick={installTexlab}>Install texlab</button>
+            {:else if lspState === "installing"}
+              <span class="muted tiny-text">Installing texlab…</span>
+            {/if}
+            <button class="ghost tiny" title="Cite from Zotero (Ctrl+Shift+C)" onclick={() => (citing = true)}>Cite</button>
             <button class="ghost tiny" title="Show this line in the PDF (Ctrl+Alt+J)" onclick={() => editor && forward(editor.line())}>Show in PDF</button>
+            <button class="ghost tiny" class:on={showTerminal} title="Terminal (Ctrl+`)" onclick={() => (showTerminal = !showTerminal)}>Terminal</button>
           {/if}
         </div>
         <div class="code">
@@ -481,12 +607,19 @@
             bind:api={editor}
             path={current}
             diagnostics={fileProblems}
-            onchange={(p) => (dirty[p] = editor?.dirty(p) ?? true)}
+            onchange={changed}
+            oncite={() => (citing = true)}
+            ondefinition={definition}
+            complete={lsp ? async (p, l, c) => (await flush(p), lsp!.completion(p, l, c)) : undefined}
+            hover={lsp ? async (p, l, c) => (await flush(p), lsp!.hover(p, l, c)) : undefined}
             onsave={save}
             oncompile={compile}
             onforward={forward}
           />
         </div>
+        {#if showTerminal && linkId}
+          <div class="terminal"><Terminal linkId={linkId} dark={app.dark} /></div>
+        {/if}
         {#if showProblems && outcome}
           <div class="problems">
             <div class="problems-head">
@@ -760,6 +893,19 @@
   .code {
     flex: 1;
     min-height: 0;
+  }
+  .terminal {
+    flex: none;
+    height: 34%;
+    min-height: 120px;
+    border-top: 1px solid var(--border);
+  }
+  button.tiny.on {
+    color: var(--accent);
+  }
+  .tiny-text {
+    font-size: 12px;
+    margin-right: 6px;
   }
   .problems {
     flex: none;

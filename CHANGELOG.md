@@ -37,3 +37,14 @@ what appears on its GitHub release page. Validated in CI by
   preview, SyncTeX in both directions, and a problems panel from the log. Compiles never run
   code from the project: shell escape is off and `.latexmkrc` isn't read.
 - The Canopy logo.
+- Project search across a synced project, with regular expressions.
+- The texlab language server in the editor: completion, hover, go to definition and live
+  problems. Canopy can download texlab for you (a pinned release, checked against its SHA-256).
+- A terminal in the project folder under the editor.
+- Citations from Zotero: search the local library and add entries to the project's `.bib`, with
+  Better BibTeX citation keys when the plugin is installed.
+- A writing dashboard: words per file and section, words per day, and a goal with a deadline.
+- A list of every keyboard shortcut in Settings.
+- `install.ps1` and `install.cmd`: install the right build for your PC from the latest release,
+  checked against `SHA256SUMS.txt` (`-Portable`, `-Lite`, `-Msi`, `-AllUsers`, `-Version`).
+- Canopy Lite portable builds for Windows (x64, x86, arm64) in every release.

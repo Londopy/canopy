@@ -5,7 +5,19 @@
 mod accounts;
 pub mod config;
 #[cfg(feature = "full")]
+mod dashboard;
+#[cfg(feature = "full")]
 mod local;
+#[cfg(feature = "full")]
+mod lsp;
+#[cfg(feature = "full")]
+mod search;
+#[cfg(feature = "full")]
+mod terminal;
+#[cfg(feature = "full")]
+mod tools;
+#[cfg(feature = "full")]
+mod zotero;
 #[macro_use]
 pub mod log_util;
 // kept identical to the copy every Londopy app ships. tauri hands files to the
@@ -38,6 +50,10 @@ pub struct AppState {
     syncer: syncing::Syncer,
     #[cfg(feature = "full")]
     local: local::Local,
+    #[cfg(feature = "full")]
+    lsp: lsp::Lsp,
+    #[cfg(feature = "full")]
+    terminals: terminal::Terminals,
 }
 
 // a poisoned lock only means another thread panicked mid-update; the data is
@@ -372,6 +388,10 @@ pub fn run() {
             syncer: Default::default(),
             #[cfg(feature = "full")]
             local: Default::default(),
+            #[cfg(feature = "full")]
+            lsp: Default::default(),
+            #[cfg(feature = "full")]
+            terminals: Default::default(),
         })
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -500,6 +520,21 @@ fn handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 
         local::read_pdf,
         local::synctex_forward,
         local::synctex_backward,
+        search::search_project,
+        terminal::term_open,
+        terminal::term_write,
+        terminal::term_resize,
+        terminal::term_close,
+        lsp::lsp_start,
+        lsp::lsp_request,
+        lsp::lsp_notify,
+        lsp::lsp_stop,
+        lsp::install_texlab,
+        zotero::zotero_status,
+        zotero::zotero_search,
+        zotero::zotero_add,
+        dashboard::dashboard,
+        dashboard::set_goals,
     ]
 }
 

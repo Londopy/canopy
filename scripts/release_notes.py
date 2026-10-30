@@ -54,6 +54,10 @@ KINDS = [
     (r"_x64_en-US\.msi$", "Windows 10/11, 64-bit", "MSI"),
     (r"_x86_en-US\.msi$", "Windows, 32-bit", "MSI"),
     (r"_arm64_en-US\.msi$", "Windows on ARM", "MSI"),
+    # Canopy Lite first: its names end like the full portable builds'
+    (r"^Canopy-Lite-.*-x64-portable\.exe$", "Windows, 64-bit", "**Canopy Lite**: web mode only, smaller, no sync or local editor"),
+    (r"^Canopy-Lite-.*-x86-portable\.exe$", "Windows, 32-bit", "Canopy Lite"),
+    (r"^Canopy-Lite-.*-arm64-portable\.exe$", "Windows on ARM", "Canopy Lite"),
     (r"-x64-portable\.exe$", "Windows, 64-bit", "one exe, nothing to install"),
     (r"-x86-portable\.exe$", "Windows, 32-bit", "one exe, nothing to install"),
     (r"-arm64-portable\.exe$", "Windows on ARM", "one exe, nothing to install"),
@@ -252,7 +256,8 @@ def main():
         return next((f for f, _, _ in sums if re.search(pattern, f)), None)
 
     setup, msi, portable_exe, zip_name = (find(r"_x64-setup\.exe$"), find(r"_x64_en-US\.msi$"),
-                                         find(r"-x64-portable\.exe$"), find(r"-portable\.zip$"))
+                                         find(r"^Canopy-v.*-x64-portable\.exe$"), find(r"-portable\.zip$"))
+    lite = find(r"^Canopy-Lite-.*-x64-portable\.exe$")
     dmg, appimage, deb, rpm = (find(r"\.dmg$"), find(r"_amd64\.AppImage$"), find(r"_amd64\.deb$"),
                                find(r"\.x86_64\.rpm$"))
 
@@ -289,6 +294,9 @@ def main():
             bits.append(f"[`{zip_name}`]({download}/{zip_name}) has all three builds and keeps settings next to the exe")
         out += ["**Windows portable:** " + "; ".join(bits) + ". Both need the WebView2 runtime, which Windows "
                 "10 and 11 already have.", ""]
+    if lite:
+        out += [f"**Canopy Lite:** [`{lite}`]({download}/{lite}) (also x86 and arm64) is just the Overleaf "
+                "web mode with accounts, in a smaller exe: no folder sync, local editor or compiles.", ""]
     if find(r"^install\.ps1$"):
         out += ["**PowerShell:** picks the right build for your PC, checks it, and installs it:", "",
                 "```powershell", f"irm https://github.com/{a.repo}/releases/latest/download/install.ps1 | iex", "```", ""]

@@ -37,13 +37,16 @@ count as vulnerabilities:
 - A project file from the server landing in a `.git` folder (or `.GIT`, `GIT~1`, and other
   spellings that reach the same folder), which could plant git hooks.
 - Sync uploading a file that still has unresolved conflict markers.
-- A project's files running code on this computer during a local compile (shell escape,
-  a `.latexmkrc`, or anything else that reaches a command line), or writing files anywhere but
-  Canopy's build folder.
+- A project's files running code on this computer during a local compile or through the
+  language server (shell escape, a `.latexmkrc`, or anything else that reaches a command
+  line), or a compile writing files anywhere but Canopy's build folder.
 - A crafted `.londopy` file doing anything but being refused or opened as settings: path
   traversal, unbounded memory, running code.
 - The updater installing anything whose signature doesn't verify against the public key
-  built into the app.
+  built into the app, or the texlab download running without matching its pinned SHA-256.
+- An Overleaf page reaching the terminal, the language server or Zotero (they answer only
+  Canopy's own window).
+- The Zotero picker talking to anything but Zotero on this computer (127.0.0.1).
 - Plain `http://` used for a server other than this machine.
 
 These are not:

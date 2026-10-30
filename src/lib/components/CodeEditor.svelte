@@ -20,11 +20,29 @@
     goto(line: number): void;
     line(): number;
     focus(): void;
+    // types `text` at the cursor (a \cite{...} from the picker)
+    insert(text: string): void;
+  }
+
+  // what the language server offers, in LSP terms (0-based lines and UTF-16
+  // columns, which is what JS strings count in)
+  export interface Completion {
+    label: string;
+    detail?: string;
+    insertText?: string;
+    textEdit?: { newText: string; range?: { start: { line: number; character: number } } };
   }
 </script>
 
 <script lang="ts">
-  import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from "@codemirror/autocomplete";
+  import {
+    autocompletion,
+    closeBrackets,
+    closeBracketsKeymap,
+    type CompletionContext,
+    completionKeymap,
+    type CompletionResult,
+  } from "@codemirror/autocomplete";
   import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
   import { bracketMatching, foldGutter, HighlightStyle, indentOnInput, StreamLanguage, syntaxHighlighting } from "@codemirror/language";
   import { stex } from "@codemirror/legacy-modes/mode/stex";
@@ -39,6 +57,7 @@
     highlightActiveLine,
     highlightActiveLineGutter,
     highlightSpecialChars,
+    hoverTooltip,
     keymap,
     lineNumbers,
     rectangularSelection,
@@ -54,6 +73,10 @@
     onsave,
     oncompile,
     onforward,
+    oncite,
+    complete,
+    hover,
+    ondefinition,
     api = $bindable(),
   }: {
     path: string | null;
@@ -62,6 +85,11 @@
     onsave?: () => void;
     oncompile?: () => void;
     onforward?: (line: number) => void;
+    oncite?: () => void;
+    // language server hooks: completions, hover text, go to definition
+    complete?: (path: string, line: number, character: number) => Promise<Completion[]>;
+    hover?: (path: string, line: number, character: number) => Promise<string | null>;
+    ondefinition?: (line: number, character: number) => void;
     api?: CodeEditorApi;
   } = $props();
 
@@ -100,6 +128,13 @@
     ".cm-panels": { backgroundColor: "var(--surface-raised)", color: "var(--text)" },
     ".cm-tooltip": { backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)" },
     ".cm-searchMatch": { backgroundColor: "rgba(214, 150, 40, 0.3)" },
+    ".cm-lsp-hover": {
+      padding: "6px 9px",
+      maxWidth: "520px",
+      whiteSpace: "pre-wrap",
+      fontFamily: "var(--font-mono)",
+      fontSize: "12px",
+    },
   });
 
   function extensions(): Extension[] {
@@ -115,7 +150,45 @@
       indentOnInput(),
       bracketMatching(),
       closeBrackets(),
-      autocompletion({ activateOnTyping: false }),
+      autocompletion({
+        activateOnTyping: true,
+        override: [
+          async (ctx: CompletionContext): Promise<CompletionResult | null> => {
+            const word = ctx.matchBefore(/\\?[\w@:-]*/);
+            if (!complete || !path || !word || (word.from === word.to && !ctx.explicit)) return null;
+            const line = ctx.state.doc.lineAt(ctx.pos);
+            const items = await complete(path, line.number - 1, ctx.pos - line.from);
+            if (!items.length) return null;
+            // the server says where its text goes; else replace the word typed
+            const start = items[0].textEdit?.range?.start;
+            const from = start && start.line === line.number - 1 ? line.from + start.character : word.from;
+            return {
+              from,
+              options: items.slice(0, 200).map((i) => ({
+                label: i.label,
+                detail: i.detail,
+                apply: i.textEdit?.newText ?? i.insertText ?? i.label,
+              })),
+              validFor: /^[\w@:-]*$/,
+            };
+          },
+        ],
+      }),
+      hoverTooltip(async (view, pos) => {
+        if (!hover || !path) return null;
+        const line = view.state.doc.lineAt(pos);
+        const text = await hover(path, line.number - 1, pos - line.from);
+        if (!text) return null;
+        return {
+          pos,
+          create: () => {
+            const dom = document.createElement("div");
+            dom.className = "cm-lsp-hover";
+            dom.textContent = text;
+            return { dom };
+          },
+        };
+      }),
       rectangularSelection(),
       crosshairCursor(),
       highlightActiveLine(),
@@ -131,6 +204,17 @@
         { key: "Mod-Enter", preventDefault: true, run: () => (oncompile?.(), true) },
         // LaTeX Workshop's key for "show in PDF"
         { key: "Mod-Alt-j", preventDefault: true, run: () => (onforward?.(currentLine()), true) },
+        { key: "Mod-Shift-c", preventDefault: true, run: () => (oncite?.(), true) },
+        {
+          key: "F12",
+          preventDefault: true,
+          run: (v) => {
+            const head = v.state.selection.main.head;
+            const line = v.state.doc.lineAt(head);
+            ondefinition?.(line.number - 1, head - line.from);
+            return true;
+          },
+        },
         ...closeBracketsKeymap,
         ...defaultKeymap,
         ...searchKeymap,
@@ -283,6 +367,12 @@
     line: currentLine,
     focus() {
       view?.focus();
+    },
+    insert(text) {
+      if (!view) return;
+      const { from, to } = view.state.selection.main;
+      view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length } });
+      view.focus();
     },
   };
 

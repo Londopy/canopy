@@ -18,7 +18,8 @@
   import Settings from "./lib/views/Settings.svelte";
   import History from "./lib/views/History.svelte";
   import Sync from "./lib/views/Sync.svelte";
-  import Upcoming from "./lib/views/Upcoming.svelte";
+  import Dashboard from "./lib/views/Dashboard.svelte";
+  import Search from "./lib/views/Search.svelte";
   import WebView from "./lib/views/WebView.svelte";
 
   let tex = $state<TexReport | null>(null);
@@ -146,13 +147,13 @@
         {:else if app.view === "settings"}
           <Settings {tex} onrescan={rescan} />
         {:else if app.view === "search"}
-          <Upcoming icon="search" title="Project search" text="Search and replace across every file in a synced project. Arrives with local mode." />
+          <Search />
         {:else if app.view === "sync"}
           <Sync />
         {:else if app.view === "history"}
           <History />
         {:else if app.view === "dashboard"}
-          <Upcoming icon="chart" title="Writing dashboard" text="Word counts per section, daily goals, deadlines and compile errors at a glance." />
+          <Dashboard />
         {/if}
       </main>
     </div>

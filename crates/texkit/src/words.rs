@@ -288,6 +288,22 @@ pub fn count(src: &str) -> Count {
                 continue;
             }
             let name: String = s[i + 1..j].iter().collect();
+            // \verb|...| (any delimiter): code, never text or math
+            if name == "verb" {
+                let mut k = j;
+                if s.get(k) == Some(&'*') {
+                    k += 1;
+                }
+                if let Some(&delim) = s.get(k) {
+                    let mut e = k + 1;
+                    while e < s.len() && s[e] != delim && s[e] != '\n' {
+                        e += 1;
+                    }
+                    i = (e + 1).min(s.len());
+                    c.text.push(' ');
+                    continue;
+                }
+            }
             let after = skip_space_and_options(&s, j);
 
             if HEADINGS.contains(&name.as_str()) {
@@ -409,6 +425,15 @@ mod tests {
         let c = count("Growth of 50\\% this year % but not this");
         // Growth of 50 this year
         assert_eq!(c.words, 5, "{c:#?}");
+    }
+
+    #[test]
+    fn inline_verb_is_skipped_whole() {
+        // the $ inside \verb must not start a formula that eats the rest
+        let c = count("Type \\verb|$x$| or \\verb+$+ then more words here");
+        assert_eq!(c.formulas, 0, "{c:#?}");
+        // Type or then more words here
+        assert_eq!(c.words, 6);
     }
 
     #[test]

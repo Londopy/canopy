@@ -2,7 +2,7 @@
 
 export type Theme = "system" | "light" | "dark";
 export type EnginePref = "auto" | "latexmk" | "tectonic" | "remote";
-export type Engine = "latexmk" | "tectonic";
+export type Engine = "latexmk" | "pdflatex" | "tectonic";
 
 export interface Account {
   id: string;
@@ -104,6 +104,8 @@ export interface AppInfo {
 
 export interface Toolchain {
   latexmk: string | null;
+  // false when latexmk is there but can't start (MiKTeX without Perl)
+  latexmk_runs: boolean;
   pdflatex: string | null;
   tectonic: string | null;
   texlab: string | null;

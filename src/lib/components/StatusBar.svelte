@@ -16,10 +16,12 @@
     <Icon name="cloud" size={14} />
     {accounts === 0 ? "No accounts" : `${accounts} account${accounts === 1 ? "" : "s"}`}
   </span>
-  <span class="item" title="Local compiler">
-    <Icon name="feather" size={14} />
-    {engine}
-  </span>
+  {#if !app.lite}
+    <span class="item" title="Local compiler">
+      <Icon name="feather" size={14} />
+      {engine}
+    </span>
+  {/if}
   {#if syncing > 0}
     <button class="item link" onclick={() => (app.view = "sync")}><Icon name="sync" size={14} /> Syncing {syncing}…</button>
   {:else if trouble > 0}

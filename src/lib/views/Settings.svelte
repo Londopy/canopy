@@ -8,6 +8,24 @@
 
   let { tex, onrescan }: { tex: TexReport | null; onrescan: () => void } = $props();
 
+  // every shortcut in one place; the palette shows the command ones too
+  const SHORTCUTS: [string, string][] = [
+    ["Ctrl+Shift+P or Ctrl+K", "Command palette"],
+    ["Ctrl+1 … Ctrl+6", "Projects, Search, Sync, Snapshots, Dashboard, Editor"],
+    ["Ctrl+,", "Settings"],
+    ["Ctrl+Shift+L", "Switch between light and dark"],
+    ["Ctrl+S", "Save (and compile, with Compile on save on)"],
+    ["Ctrl+Enter", "Compile"],
+    ["Ctrl+Alt+J", "Show the current line in the PDF"],
+    ["Double-click the PDF", "Jump to that line in the source"],
+    ["Ctrl+Shift+C", "Cite from Zotero"],
+    ["Ctrl+Space", "Complete a command, label or citation (with texlab)"],
+    ["F12", "Go to where a label or command is defined (with texlab)"],
+    ["Ctrl+F", "Find and replace in the file"],
+    ["Ctrl+`", "Open or close the terminal"],
+    ["Ctrl+Shift+R", "Reload the Overleaf page (in web mode)"],
+  ];
+
   const themes: { value: Theme; label: string }[] = [
     { value: "system", label: "System" },
     { value: "light", label: "Light" },
@@ -92,6 +110,7 @@
       </label>
     </div>
 
+    {#if !app.lite}
     <div class="card">
       <h2>Compiler</h2>
       <div class="row">
@@ -103,7 +122,11 @@
             {:else if cfg.compile.engine === "remote"}
               Compiles run on the Overleaf server.
             {:else}
-              Nothing usable found yet. Tectonic installs with one click once local mode lands.
+              Nothing found. Install TeX Live or MiKTeX, or put <code>tectonic</code> on your PATH, then scan again.
+            {/if}
+            {#if tex?.tools.latexmk && !tex.tools.latexmk_runs}
+              latexmk is installed but can't run (MiKTeX ships it without the Perl it needs), so Canopy runs the
+              engine and BibTeX itself.
             {/if}
           </div>
         </div>
@@ -130,6 +153,7 @@
       </table>
       <div class="buttons"><button class="ghost" onclick={onrescan}>Scan again</button></div>
     </div>
+    {/if}
 
     <div class="card">
       <h2>Updates</h2>
@@ -146,6 +170,18 @@
         />
       </label>
       <div class="buttons"><button class="ghost" onclick={() => checkForUpdates(true)}>Check now</button></div>
+    </div>
+
+    <div class="card">
+      <h2>Keyboard shortcuts</h2>
+      <table class="keys">
+        <tbody>
+          {#each SHORTCUTS as [keys, what] (keys)}
+            <tr><td><kbd>{keys}</kbd></td><td>{what}</td></tr>
+          {/each}
+        </tbody>
+      </table>
+      <p class="hint">On macOS, Cmd takes the place of Ctrl. Inside an Overleaf page, Overleaf's own keys apply.</p>
     </div>
 
     <div class="card">
@@ -221,6 +257,19 @@
   }
   .label {
     font-weight: 550;
+  }
+  .keys {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .keys td {
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .keys td:first-child {
+    width: 220px;
+    white-space: nowrap;
   }
   .hint {
     color: var(--text-muted);

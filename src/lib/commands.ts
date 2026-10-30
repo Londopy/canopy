@@ -24,7 +24,7 @@ export const VIEWS: { view: View; title: string; icon: string; keys: string; ful
   { view: "search", title: "Search", icon: "search", keys: "Ctrl+2", full: true },
   { view: "sync", title: "Sync", icon: "sync", keys: "Ctrl+3", full: true },
   { view: "history", title: "Snapshots", icon: "history", keys: "Ctrl+4", full: true },
-  { view: "dashboard", title: "Writing dashboard", icon: "chart", keys: "Ctrl+5" },
+  { view: "dashboard", title: "Writing dashboard", icon: "chart", keys: "Ctrl+5", full: true },
   { view: "editor", title: "Editor", icon: "code", keys: "Ctrl+6", full: true },
 ];
 

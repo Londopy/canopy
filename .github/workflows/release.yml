@@ -154,6 +154,16 @@ jobs:
           New-Item -ItemType Directory -Force portable | Out-Null
           Copy-Item "target/${{ matrix.target }}/release/Canopy.exe" "portable/Canopy-v${{ needs.validate.outputs.version }}-${{ matrix.arch }}-portable.exe"
 
+      # Canopy Lite: the same app without the `full` feature (no sync, local
+      # editor, compiles or terminal). it overwrites Canopy.exe in target/, so
+      # it comes after the full build has been copied out
+      - name: Canopy Lite portable exe
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          npx tauri build --target ${{ matrix.target }} --no-bundle -- --no-default-features
+          Copy-Item "target/${{ matrix.target }}/release/Canopy.exe" "portable/Canopy-Lite-v${{ needs.validate.outputs.version }}-${{ matrix.arch }}-portable.exe"
+
       - if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
@@ -197,6 +207,8 @@ jobs:
           mkdir -p dist
           gh release download "${{ needs.validate.outputs.tag }}" --dir dist
           cp portable/* dist/
+          # the script installs ship with every release, so releases/latest/download/install.ps1 works
+          cp scripts/install.ps1 scripts/install.cmd dist/
 
       - uses: actions/setup-python@v5
         with:
@@ -232,7 +244,7 @@ jobs:
           TAG="${{ needs.validate.outputs.tag }}"
           # what the draft doesn't have yet (portable builds, torrents, QR codes,
           # checksums) plus latest.json, now carrying the real release notes
-          NEW=$(cd dist && ls | grep -E -- '-portable\.(exe|zip)$|\.torrent$|\.magnet\.png$|^SHA256SUMS\.txt$|^latest\.json$')
+          NEW=$(cd dist && ls | grep -E -- '-portable\.(exe|zip)$|\.torrent$|\.magnet\.png$|^SHA256SUMS\.txt$|^latest\.json$|^install\.(ps1|cmd)$')
           (cd dist && gh release upload "$TAG" $NEW --clobber)
           LATEST="--latest"
           if [ "${{ needs.validate.outputs.prerelease }}" = "true" ]; then LATEST="--prerelease"; fi

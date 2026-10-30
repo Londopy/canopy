@@ -41,10 +41,12 @@ your way.
 | ✅ | Two-way folder sync: edit in any editor, Canopy syncs on save and pulls Overleaf's changes; edits on both sides merge |
 | ✅ | Snapshots: a local git history of every sync, with diffs and one-click restore |
 | ✅ | Local mode: a LaTeX editor on the synced folder, local compiles, a PDF preview, and SyncTeX both ways |
-| 🚧 | Language server (completion, diagnostics as you type), project search, terminal |
-| 🚧 | Zotero citation picker and `.bib` sync |
-| 🚧 | Writing dashboard: word counts per section, daily goals, deadlines |
-| 🚧 | Canopy Lite, a smaller web-mode-only download |
+| ✅ | Language server (texlab): completion, hover help, go to definition, problems as you type |
+| ✅ | Project search with regular expressions, and a terminal in the project folder |
+| ✅ | Zotero citation picker that adds entries to the project's `.bib` |
+| ✅ | Writing dashboard: word counts per section, words per day, a goal and a deadline |
+| ✅ | Canopy Lite, a smaller web-mode-only download, and a Lite mode switch in the full build |
+| ✅ | One-line script install (`install.ps1`, `install.cmd`) that checks every download |
 
 ## Install
 
@@ -52,12 +54,31 @@ Every [release](https://github.com/Londopy/canopy/releases/latest) ships:
 
 | Platform | Download |
 |---|---|
-| Windows | `Canopy_<version>_x64-setup.exe` (**recommended**, per-user, no admin prompt), MSIs, portable exes and a portable zip |
+| Windows | `Canopy_<version>_x64-setup.exe` (**recommended**, per-user, no admin prompt; also x86 and arm64), MSIs, portable exes, a portable zip, and **Canopy Lite** portable exes |
 | macOS | `Canopy_<version>_universal.dmg` (Apple silicon and Intel) |
 | Linux | `.AppImage`, `.deb` and `.rpm` for x86_64 and arm64 |
 
 Each file also comes as a `.torrent` whose GitHub download is the web seed, so it works even with
 nobody seeding.
+
+On Windows, one line picks the right build for your PC, checks its SHA-256 and installs it:
+
+```powershell
+irm https://github.com/Londopy/canopy/releases/latest/download/install.ps1 | iex
+```
+
+Add options by running it as a script block, for example the portable build, the MSI, or Lite:
+
+```powershell
+& ([scriptblock]::Create((irm https://github.com/Londopy/canopy/releases/latest/download/install.ps1))) -Portable
+```
+
+The options are `-Portable`, `-Lite`, `-Msi`, `-AllUsers`, `-Version 0.1.0`, `-Dir`, `-AddToPath`,
+`-NoShortcut` and `-DryRun`. `install.cmd` does the same for people who'd rather double-click.
+
+**Canopy Lite** is the web mode alone (Overleaf in a window, with accounts, the tray and
+updates) in a smaller download: no folder sync, local editor, compiles or terminal. The full
+build also has a Lite mode switch in **Settings** for the same thing at run time.
 
 The binaries are not code-signed. Windows SmartScreen may say "Windows protected your PC": click
 **More info**, then **Run anyway**. On macOS, the first launch is blocked because the app isn't
@@ -157,6 +178,41 @@ a document needs `--shell-escape` (`minted`, for example), compile it on Overlea
 
 MiKTeX asks before it installs a missing package. When a compile takes a while, look for its
 window: it may be behind Canopy.
+
+### Search, language server, terminal
+
+**Search** (`Ctrl+2`) looks through every text file of a synced project: plain text or a
+regular expression, with match case and whole word. Click a result to open it in the editor.
+
+The first time you open the editor, it offers to **Install texlab**, the LaTeX language
+server (about 10 MB, from texlab's GitHub releases; Canopy checks it against a pinned
+checksum before running it). If `texlab` is already on your PATH, Canopy uses that and doesn't
+offer the download. texlab never runs latexmk for Canopy, so a project's `.latexmkrc` can't run
+through it either.
+With it you get completion for commands, environments, labels and citations (`Ctrl+Space`, or
+as you type), hover help for packages and labels, go to definition (`F12`), and problems
+marked as you type.
+
+**Terminal** (`` Ctrl+` ``) opens your shell (PowerShell on Windows) in the project's folder,
+under the editor.
+
+### Citations from Zotero
+
+**Cite** (`Ctrl+Shift+C`) searches the Zotero library on this computer and adds the entries you
+pick to one of the project's `.bib` files (or a new `references.bib`), then types the
+`\cite{...}` for you. Zotero has to be running. With the
+[Better BibTeX](https://retorque.re/zotero-better-bibtex/) plugin, Canopy uses its citation
+keys; without it, Zotero 7 needs one setting: **Settings > Advanced > Allow other applications
+on this computer to communicate with Zotero**. Canopy only ever talks to Zotero on this
+computer.
+
+### Writing dashboard
+
+The **Dashboard** (`Ctrl+5`) counts the words in a synced project, following `\input` and
+`\include` from the main file: per file and per section, words written each day for the last
+30 days, and, with a goal and a deadline set, how many words a day you still need. Counting
+works like texcount: commands, comments and citations don't count, and math counts as
+formulas.
 
 ## .londopy files
 
