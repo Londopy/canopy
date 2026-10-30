@@ -165,7 +165,7 @@ jobs:
           Copy-Item "target/${{ matrix.target }}/release/Canopy.exe" "portable/Canopy-Lite-v${{ needs.validate.outputs.version }}-${{ matrix.arch }}-portable.exe"
 
       - if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: portable-${{ matrix.arch }}
           path: portable/*.exe
