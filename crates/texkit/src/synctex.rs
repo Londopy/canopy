@@ -390,6 +390,14 @@ mod tests {
         s.inputs[&1].parent().unwrap().to_path_buf()
     }
 
+    // the fixture was made on Windows, and Unix paths don't split on `\`
+    fn named(p: &Path, name: &str) -> bool {
+        p.to_string_lossy()
+            .rsplit(['/', '\\'])
+            .next()
+            .is_some_and(|last| last == name)
+    }
+
     #[test]
     fn forward_matches_the_synctex_program() {
         // `synctex view -i 3:1:chapters/one.tex` on the real file gave
@@ -425,10 +433,10 @@ mod tests {
         // `-o 1:150:105` -> main.tex line 9
         let s = sample();
         let hit = s.backward(1, 200.0, 140.0).unwrap();
-        assert!(hit.file.ends_with("main.tex"), "{hit:?}");
+        assert!(named(&hit.file, "main.tex"), "{hit:?}");
         assert_eq!(hit.line, 3);
         let near_top = s.backward(1, 150.0, 105.0).unwrap();
-        assert!(near_top.file.ends_with("main.tex"));
+        assert!(named(&near_top.file, "main.tex"));
         assert!(s.backward(9, 1.0, 1.0).is_none());
     }
 
@@ -445,7 +453,7 @@ mod tests {
                     spot.y + spot.height * 0.8,
                 )
                 .unwrap();
-            assert!(back.file.ends_with("one.tex"), "{back:?}");
+            assert!(named(&back.file, "one.tex"), "{back:?}");
             assert_eq!(back.line, line);
         }
     }
