@@ -210,7 +210,7 @@ jobs:
           # the script installs ship with every release, so releases/latest/download/install.ps1 works
           cp scripts/install.ps1 scripts/install.cmd dist/
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
